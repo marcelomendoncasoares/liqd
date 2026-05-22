@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../generated/protocol.dart';
 
 /// Catalog identifier shared with the Flutter client.
@@ -8,8 +10,8 @@ const basicCatalogId = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 
 /// Builds system prompts for GenUI conversations with catalog context.
 abstract final class GenUiPromptService {
-  static List<Map<String, String>> fewShotMessages() {
-    return [
+  static List<Map<String, String>> fewShotMessages({bool includeEdit = false}) {
+    final messages = [
       {
         'role': 'user',
         'content': 'Build a simple counter with a +1 button.',
@@ -27,6 +29,21 @@ abstract final class GenUiPromptService {
         'content': _calculatorFewShot,
       },
     ];
+
+    if (includeEdit) {
+      messages.addAll([
+        {
+          'role': 'user',
+          'content': 'Add a clear button to the calculator.',
+        },
+        {
+          'role': 'assistant',
+          'content': _calculatorEditFewShot,
+        },
+      ]);
+    }
+
+    return messages;
   }
 
   static const _counterFewShot =
@@ -55,7 +72,16 @@ abstract final class GenUiPromptService {
 ```
 ''';
 
-  static String buildSystemPrompt(List<UserWidget> widgets) {
+  static const _calculatorEditFewShot = '''
+```json
+{"version":"v0.9","updateComponents":{"surfaceId":"calculator","components":[{"id":"rowClear","component":"Row","children":["btnClear"]},{"id":"btnClear","component":"Button","child":"btnClearLabel","action":{"event":{"name":"clear"}}},{"id":"btnClearLabel","component":"Text","text":"C"}]}}
+```
+''';
+
+  static String buildSystemPrompt(
+    List<UserWidget> widgets, {
+    bool isEdit = false,
+  }) {
     final catalogEntries = widgets
         .map(
           (w) => {
@@ -70,7 +96,7 @@ abstract final class GenUiPromptService {
 You are Liqd, an AI that builds interactive Flutter apps using the A2UI v0.9 protocol.
 
 CRITICAL: Output ONLY valid A2UI JSON blocks in markdown fences. No prose.
-
+${isEdit ? _editModeInstructions : ''}
 ## Interactive apps (preferred): native GenUI catalog
 
 Use catalogId "$basicCatalogId" with sendDataModel: true.
@@ -119,5 +145,49 @@ Stac interactivity (reactive UI):
 User catalog widgets:
 ${catalogEntries.map((e) => '- ${e['name']}: ${e['description']}').join('\n')}
 ''';
+  }
+
+  static const _editModeInstructions = '''
+## Editing an existing app (follow-up requests)
+
+The user already has a live app. You MUST incrementally modify it:
+- Reuse the SAME surfaceId from the current app state message.
+- Do NOT emit createSurface unless the user explicitly asks for a new screen.
+- Prefer updateComponents for changed/new components and updateDataModel for state.
+- Only include components you add or change; unchanged components can be omitted.
+- Never rebuild the entire app from scratch unless the user asks to start over.
+
+''';
+
+  /// Formats existing surface JSON for injection as an assistant context message.
+  static String? buildExistingSurfacesMessage(String? existingSurfacesJson) {
+    if (existingSurfacesJson == null || existingSurfacesJson.trim().isEmpty) {
+      return null;
+    }
+
+    return '''
+Current app state (preserve surfaceId and incrementally edit):
+```json
+$existingSurfacesJson
+```
+''';
+  }
+
+  static Set<String> parseExistingSurfaceIds(String? existingSurfacesJson) {
+    if (existingSurfacesJson == null || existingSurfacesJson.trim().isEmpty) {
+      return const {};
+    }
+
+    try {
+      final decoded = jsonDecode(existingSurfacesJson) as Map<String, dynamic>;
+      final surfaces = decoded['surfaces'];
+      if (surfaces is Map) {
+        return surfaces.keys.map((key) => key.toString()).toSet();
+      }
+    } on FormatException {
+      return const {};
+    }
+
+    return const {};
   }
 }

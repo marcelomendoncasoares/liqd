@@ -20,12 +20,14 @@ abstract class GenUiChatRequest
     this.model,
     required this.messages,
     this.conversationId,
+    this.existingSurfacesJson,
   });
 
   factory GenUiChatRequest({
     String? model,
     required List<_i2.GenUiChatMessage> messages,
     String? conversationId,
+    String? existingSurfacesJson,
   }) = _GenUiChatRequestImpl;
 
   factory GenUiChatRequest.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -35,6 +37,8 @@ abstract class GenUiChatRequest
         jsonSerialization['messages'],
       ),
       conversationId: jsonSerialization['conversationId'] as String?,
+      existingSurfacesJson:
+          jsonSerialization['existingSurfacesJson'] as String?,
     );
   }
 
@@ -44,6 +48,8 @@ abstract class GenUiChatRequest
 
   String? conversationId;
 
+  String? existingSurfacesJson;
+
   /// Returns a shallow copy of this [GenUiChatRequest]
   /// with some or all fields replaced by the given arguments.
   @_i1.useResult
@@ -51,6 +57,7 @@ abstract class GenUiChatRequest
     String? model,
     List<_i2.GenUiChatMessage>? messages,
     String? conversationId,
+    String? existingSurfacesJson,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -59,6 +66,8 @@ abstract class GenUiChatRequest
       if (model != null) 'model': model,
       'messages': messages.toJson(valueToJson: (v) => v.toJson()),
       if (conversationId != null) 'conversationId': conversationId,
+      if (existingSurfacesJson != null)
+        'existingSurfacesJson': existingSurfacesJson,
     };
   }
 
@@ -69,6 +78,8 @@ abstract class GenUiChatRequest
       if (model != null) 'model': model,
       'messages': messages.toJson(valueToJson: (v) => v.toJsonForProtocol()),
       if (conversationId != null) 'conversationId': conversationId,
+      if (existingSurfacesJson != null)
+        'existingSurfacesJson': existingSurfacesJson,
     };
   }
 
@@ -85,10 +96,12 @@ class _GenUiChatRequestImpl extends GenUiChatRequest {
     String? model,
     required List<_i2.GenUiChatMessage> messages,
     String? conversationId,
+    String? existingSurfacesJson,
   }) : super._(
          model: model,
          messages: messages,
          conversationId: conversationId,
+         existingSurfacesJson: existingSurfacesJson,
        );
 
   /// Returns a shallow copy of this [GenUiChatRequest]
@@ -99,6 +112,7 @@ class _GenUiChatRequestImpl extends GenUiChatRequest {
     Object? model = _Undefined,
     List<_i2.GenUiChatMessage>? messages,
     Object? conversationId = _Undefined,
+    Object? existingSurfacesJson = _Undefined,
   }) {
     return GenUiChatRequest(
       model: model is String? ? model : this.model,
@@ -106,6 +120,9 @@ class _GenUiChatRequestImpl extends GenUiChatRequest {
       conversationId: conversationId is String?
           ? conversationId
           : this.conversationId,
+      existingSurfacesJson: existingSurfacesJson is String?
+          ? existingSurfacesJson
+          : this.existingSurfacesJson,
     );
   }
 }

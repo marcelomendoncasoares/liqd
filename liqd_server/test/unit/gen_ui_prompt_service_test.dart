@@ -30,11 +30,34 @@ void main() {
 
     test('fewShotMessages provides valid counter example exchange', () {
       final messages = GenUiPromptService.fewShotMessages();
-      expect(messages, hasLength(2));
+      expect(messages, hasLength(4));
       expect(messages.last['content'], contains('createSurface'));
       expect(messages.last['content'], contains('updateDataModel'));
       expect(messages.last['content'], contains('updateComponents'));
-      expect(messages.last['content'], contains('increment'));
+      expect(messages.last['content'], contains('digit'));
+    });
+
+    test('includes edit instructions when isEdit is true', () {
+      final prompt = GenUiPromptService.buildSystemPrompt([], isEdit: true);
+
+      expect(prompt, contains('incrementally modify'));
+      expect(prompt, contains('Do NOT emit createSurface'));
+    });
+
+    test('parseExistingSurfaceIds reads surface keys from JSON', () {
+      final ids = GenUiPromptService.parseExistingSurfaceIds(
+        '{"surfaces":{"calculator":{},"counter":{}}}',
+      );
+
+      expect(ids, containsAll(['calculator', 'counter']));
+    });
+
+    test('fewShotMessages includes edit example when requested', () {
+      final messages = GenUiPromptService.fewShotMessages(includeEdit: true);
+
+      expect(messages, hasLength(6));
+      expect(messages[4]['content'], contains('clear button'));
+      expect(messages.last['content'], contains('btnClear'));
     });
   });
 }

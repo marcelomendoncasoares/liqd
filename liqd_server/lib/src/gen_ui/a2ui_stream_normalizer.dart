@@ -6,8 +6,12 @@ import 'gen_ui_prompt_service.dart';
 ///
 /// Repairs complete JSON blocks and injects missing [createSurface] messages.
 class A2uiStreamNormalizer {
+  A2uiStreamNormalizer({Set<String>? existingSurfaceIds})
+    : _existingSurfaceIds = existingSurfaceIds ?? const {};
+
   final _buffer = StringBuffer();
   final _createdSurfaces = <String>{};
+  final Set<String> _existingSurfaceIds;
 
   /// Feeds a chunk and returns zero or more normalized chunks to yield.
   List<String> process(String chunk) {
@@ -81,7 +85,9 @@ class A2uiStreamNormalizer {
       final update = decoded['updateComponents'];
       if (update is Map<String, dynamic>) {
         final surfaceId = update['surfaceId'] as String?;
-        if (surfaceId != null && !_createdSurfaces.contains(surfaceId)) {
+        if (surfaceId != null &&
+            !_createdSurfaces.contains(surfaceId) &&
+            !_existingSurfaceIds.contains(surfaceId)) {
           _createdSurfaces.add(surfaceId);
           final components = update['components'];
           final catalogId = _catalogIdForComponents(components);

@@ -4,7 +4,10 @@ import 'package:genui/genui.dart';
 import 'package:liqd_client/liqd_client.dart';
 
 import '../../config/app_config.dart';
+import 'chat_request_builder.dart';
 import 'generation_cancel_token.dart';
+
+const _flushTimeout = Duration(seconds: 5);
 
 String _formatStreamError(Object error) {
   if (error is GenUiStreamException) {
@@ -48,17 +51,17 @@ String _formatStreamError(Object error) {
   return 'Streaming connection error: $error';
 }
 
-GenUiChatMessage _toGenUiMessage(ChatMessage message) {
-  for (final part in message.parts) {
-    final interaction = part.asUiInteractionPart;
-    if (interaction != null) {
-      return GenUiChatMessage(
-        role: 'user',
-        content: interaction.interaction,
-      );
-    }
+List<GenUiChatMessage> _buildRequestMessages({
+  required List<GenUiChatMessage> history,
+  required ChatMessage message,
+}) => buildChatRequestMessages(history: history, message: message);
+
+Future<void> _flushTransport(A2uiTransportAdapter transport) async {
+  try {
+    await transport.flush().timeout(_flushTimeout);
+  } on TimeoutException {
+    // Parser did not finish; avoid hanging the UI indefinitely.
   }
-  return GenUiChatMessage(role: 'user', content: message.text);
 }
 
 /// Streams OpenRouter responses from Serverpod into GenUI.
@@ -71,14 +74,13 @@ Future<void> streamGenUiFromServer({
   required void Function(StreamSubscription<String> subscription)
   onSubscription,
   String? model,
+  String? existingSurfacesJson,
 }) async {
-  final messages = [
-    ...history,
-    _toGenUiMessage(message),
-  ];
+  final messages = _buildRequestMessages(history: history, message: message);
   final request = GenUiChatRequest(
     model: model ?? defaultModel,
     messages: messages,
+    existingSurfacesJson: existingSurfacesJson,
   );
 
   try {
@@ -87,14 +89,36 @@ Future<void> streamGenUiFromServer({
 
     late StreamSubscription<String> subscription;
     var streamClosed = false;
+    var finishInProgress = false;
+
+    Future<void> finishStream({required bool flushTransport}) async {
+      if (finishInProgress || completer.isCompleted) {
+        return;
+      }
+      finishInProgress = true;
+      streamClosed = true;
+
+      if (flushTransport && !cancelToken.isCancelled) {
+        await _flushTransport(transport);
+      }
+
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
 
     void closeStream() {
       if (streamClosed) {
         return;
       }
       streamClosed = true;
-      subscription.cancel();
+      unawaited(subscription.cancel());
     }
+
+    cancelToken.onCancel(() {
+      closeStream();
+      unawaited(finishStream(flushTransport: false));
+    });
 
     subscription = stream.listen(
       (chunk) {
@@ -108,21 +132,11 @@ Future<void> streamGenUiFromServer({
           streamClosed = true;
         }
       },
-      onDone: () async {
-        streamClosed = true;
-        if (!cancelToken.isCancelled) {
-          await transport.flush();
-        }
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      },
+      onDone: () => finishStream(flushTransport: true),
       onError: (Object error, StackTrace stackTrace) {
         streamClosed = true;
         if (cancelToken.isCancelled) {
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
+          unawaited(finishStream(flushTransport: false));
           return;
         }
         if (!completer.isCompleted) {
@@ -135,6 +149,7 @@ Future<void> streamGenUiFromServer({
 
     if (cancelToken.isCancelled) {
       closeStream();
+      await finishStream(flushTransport: false);
     }
 
     await completer.future;

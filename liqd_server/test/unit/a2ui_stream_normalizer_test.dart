@@ -32,5 +32,20 @@ void main() {
       expect(chunks.first, contains(basicCatalogId));
       expect(chunks.first, contains('sendDataModel'));
     });
+
+    test('skips createSurface injection for existing client surfaces', () {
+      final normalizer = A2uiStreamNormalizer(
+        existingSurfaceIds: {'calculator'},
+      );
+      final chunks = normalizer.process('''
+```json
+{"version":"v0.9","updateComponents":{"surfaceId":"calculator","components":[{"id":"btnClear","component":"Button","child":"lbl","action":{"event":{"name":"clear"}}},{"id":"lbl","component":"Text","text":"C"}]}}
+```
+''');
+
+      expect(chunks.length, 1);
+      expect(chunks.single, isNot(contains('createSurface')));
+      expect(chunks.single, contains('updateComponents'));
+    });
   });
 }

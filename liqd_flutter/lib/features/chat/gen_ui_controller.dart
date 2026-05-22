@@ -8,6 +8,7 @@ import '../catalog/stac_template_merger.dart';
 import 'generation_cancel_token.dart';
 import 'local_action_handler.dart';
 import 'serverpod_transport.dart';
+import 'surface_context_builder.dart';
 
 /// Orchestrates GenUI conversation lifecycle with a dynamic user catalog.
 class GenUiController {
@@ -180,6 +181,7 @@ class GenUiController {
         message: message,
         model: model,
         cancelToken: _cancelToken!,
+        existingSurfacesJson: buildExistingSurfacesJson(controller),
         onSubscription: (subscription) {
           _streamSubscription = subscription;
         },

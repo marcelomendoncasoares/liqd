@@ -46,7 +46,14 @@ class GenUiStreamEndpoint extends Endpoint {
 
     final catalogEndpoint = WidgetCatalogEndpoint();
     final widgets = await catalogEndpoint.listMyWidgets(session);
-    final systemPrompt = GenUiPromptService.buildSystemPrompt(widgets);
+    final existingSurfaceIds = GenUiPromptService.parseExistingSurfaceIds(
+      request.existingSurfacesJson,
+    );
+    final isEdit = existingSurfaceIds.isNotEmpty;
+    final systemPrompt = GenUiPromptService.buildSystemPrompt(
+      widgets,
+      isEdit: isEdit,
+    );
 
     final apiKey = OpenRouterConfig.resolveApiKey(session);
     if (apiKey == null) {
@@ -76,11 +83,20 @@ class GenUiStreamEndpoint extends Endpoint {
 
     final model = request.model ?? defaultModel;
     final buffer = StringBuffer();
-    final normalizer = A2uiStreamNormalizer();
+    final normalizer = A2uiStreamNormalizer(
+      existingSurfaceIds: existingSurfaceIds,
+    );
+
+    final existingSurfacesMessage =
+        GenUiPromptService.buildExistingSurfacesMessage(
+          request.existingSurfacesJson,
+        );
 
     final messages = <Map<String, dynamic>>[
       {'role': 'system', 'content': systemPrompt},
-      ...GenUiPromptService.fewShotMessages(),
+      ...GenUiPromptService.fewShotMessages(includeEdit: isEdit),
+      if (existingSurfacesMessage != null)
+        {'role': 'assistant', 'content': existingSurfacesMessage},
       ...request.messages.map(
         (m) => {'role': m.role, 'content': m.content},
       ),
