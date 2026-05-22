@@ -352,11 +352,11 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Card(
                         clipBehavior: Clip.antiAlias,
-                        child: SizedBox(
+                        child: ConstrainedBox(
                           key: ValueKey('preview_surface_$surfaceId'),
-                          height: 480,
-                          width: double.infinity,
-                          child: ClipRect(
+                          constraints: const BoxConstraints(maxHeight: 480),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
                             child: controller == null
                                 ? const Center(
                                     child: CircularProgressIndicator(),

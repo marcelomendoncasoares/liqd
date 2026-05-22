@@ -86,15 +86,30 @@ Future<void> streamGenUiFromServer({
     final completer = Completer<void>();
 
     late StreamSubscription<String> subscription;
+    var streamClosed = false;
+
+    void closeStream() {
+      if (streamClosed) {
+        return;
+      }
+      streamClosed = true;
+      subscription.cancel();
+    }
+
     subscription = stream.listen(
       (chunk) {
-        if (cancelToken.isCancelled) {
-          subscription.cancel();
+        if (cancelToken.isCancelled || streamClosed) {
           return;
         }
-        transport.addChunk(chunk);
+        try {
+          transport.addChunk(chunk);
+        } on StateError {
+          // Transport input closed by flush(), dispose(), or hot reload.
+          streamClosed = true;
+        }
       },
       onDone: () async {
+        streamClosed = true;
         if (!cancelToken.isCancelled) {
           await transport.flush();
         }
@@ -103,6 +118,7 @@ Future<void> streamGenUiFromServer({
         }
       },
       onError: (Object error, StackTrace stackTrace) {
+        streamClosed = true;
         if (cancelToken.isCancelled) {
           if (!completer.isCompleted) {
             completer.complete();
@@ -118,7 +134,7 @@ Future<void> streamGenUiFromServer({
     onSubscription(subscription);
 
     if (cancelToken.isCancelled) {
-      await subscription.cancel();
+      closeStream();
     }
 
     await completer.future;
