@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/app_config.dart';
+import '../../config/model_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,9 +21,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+    final model = await ModelPreferences.getSelectedModel();
     setState(() {
-      _selectedModel = prefs.getString('selected_model') ?? defaultModel;
+      _selectedModel = model;
       _loading = false;
     });
   }
@@ -32,8 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (model == null) {
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_model', model);
+    await ModelPreferences.setSelectedModel(model);
     setState(() {
       _selectedModel = model;
     });

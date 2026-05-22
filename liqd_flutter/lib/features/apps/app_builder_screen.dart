@@ -367,6 +367,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
               children: [
                 Expanded(
                   child: TextField(
+                    key: const ValueKey('builder_prompt_field'),
                     controller: _textController,
                     decoration: const InputDecoration(
                       hintText: 'Describe the app you want to build...',
@@ -374,6 +375,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                     ),
                     minLines: 1,
                     maxLines: 4,
+                    textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),

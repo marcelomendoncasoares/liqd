@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liqd_client/liqd_client.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../config/app_config.dart';
+import '../../config/model_preferences.dart';
 import '../catalog/catalog_browser_screen.dart';
 import 'app_builder_screen.dart';
 
@@ -57,36 +56,54 @@ class _AppsListScreenState extends State<AppsListScreen> {
   }
 
   Future<void> _openNewApp() async {
-    final model = await _loadSelectedModel();
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AppBuilderScreen(
-          client: widget.client,
-          model: model,
+    try {
+      final model = await ModelPreferences.getSelectedModel();
+      if (!mounted) {
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => AppBuilderScreen(
+            client: widget.client,
+            model: model,
+          ),
         ),
-      ),
-    );
-    await _loadApps();
+      );
+      await _loadApps();
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open builder: $error')),
+      );
+    }
   }
 
   Future<void> _openApp(UserApp app) async {
-    final model = await _loadSelectedModel();
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AppBuilderScreen(
-          client: widget.client,
-          model: model,
-          existingApp: app,
+    try {
+      final model = await ModelPreferences.getSelectedModel();
+      if (!mounted) {
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => AppBuilderScreen(
+            client: widget.client,
+            model: model,
+            existingApp: app,
+          ),
         ),
-      ),
-    );
-    await _loadApps();
+      );
+      await _loadApps();
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open app: $error')),
+      );
+    }
   }
 
   Future<void> _deleteApp(UserApp app) async {
@@ -112,11 +129,6 @@ class _AppsListScreenState extends State<AppsListScreen> {
     }
     await widget.client.userApp.deleteApp(app.id!);
     await _loadApps();
-  }
-
-  Future<String> _loadSelectedModel() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('selected_model') ?? defaultModel;
   }
 
   Future<void> _openSettings() async {
@@ -156,6 +168,7 @@ class _AppsListScreenState extends State<AppsListScreen> {
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton.extended(
+        key: const ValueKey('new_app_fab'),
         onPressed: _openNewApp,
         icon: const Icon(Icons.add),
         label: const Text('New app'),
