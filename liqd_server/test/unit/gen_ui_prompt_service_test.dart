@@ -13,6 +13,12 @@ void main() {
           ),
           name: 'TextBlock',
           description: 'Shows text.',
+          dataSchema: {
+            'type': 'object',
+            'properties': {
+              'text': {'type': 'string'},
+            },
+          },
           stacJson: {'type': 'text', 'data': '{{text}}'},
         ),
       ]);
@@ -26,6 +32,10 @@ void main() {
       expect(prompt, contains('TextBlock'));
       expect(prompt, contains('functionCall'));
       expect(prompt, contains('incrementPath'));
+      expect(prompt, contains('removeFromPath'));
+      expect(prompt, contains('componentId'));
+      expect(prompt, contains('AudioPlayer'));
+      expect(prompt, contains('dataSchema'));
     });
 
     test('fewShotMessages provides valid counter example exchange', () {
@@ -33,6 +43,8 @@ void main() {
       expect(messages, hasLength(4));
       expect(messages[1]['content'], contains('incrementPath'));
       expect(messages.last['content'], contains('pushToPath'));
+      expect(messages.last['content'], contains('removeFromPath'));
+      expect(messages.last['content'], contains('componentId'));
       expect(messages.last['content'], contains('functionCall'));
     });
 

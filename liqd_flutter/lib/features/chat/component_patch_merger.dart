@@ -38,7 +38,7 @@ abstract final class ComponentPatchMerger {
           mergedProps['children'] as List,
           value,
         );
-      } else {
+      } else if (value != null) {
         mergedProps[key] = value;
       }
     }

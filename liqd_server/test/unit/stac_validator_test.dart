@@ -24,5 +24,22 @@ void main() {
       });
       expect(result.valid, isFalse);
     });
+
+    test('accepts checkBox and setValue types', () {
+      expect(
+        StacValidator.validate({'type': 'checkBox', 'value': true}).valid,
+        isTrue,
+      );
+      expect(
+        StacValidator.validate({
+          'type': 'setValue',
+          'values': [
+            {'key': 'count', 'value': 0},
+          ],
+          'child': {'type': 'text', 'data': '{{count}}'},
+        }).valid,
+        isTrue,
+      );
+    });
   });
 }

@@ -90,5 +90,40 @@ void main() {
         ['inputRow', 'clearBtn'],
       );
     });
+    test('does not overwrite child with null during merge', () {
+      final merged = ComponentPatchMerger.merge(
+        existing: SurfaceDefinition(
+          surfaceId: 'main',
+          components: {
+            'addBtn': const Component(
+              id: 'addBtn',
+              type: 'Button',
+              properties: {
+                'child': 'addLabel',
+                'action': {'functionCall': {}},
+              },
+            ),
+          },
+        ),
+        incoming: [
+          const Component(
+            id: 'addBtn',
+            type: 'Button',
+            properties: {
+              'child': null,
+              'action': {
+                'functionCall': {
+                  'call': 'setPath',
+                  'args': {'path': '/count', 'value': 0},
+                  'returnType': 'void',
+                },
+              },
+            },
+          ),
+        ],
+      );
+
+      expect(merged.single.properties['child'], 'addLabel');
+    });
   });
 }

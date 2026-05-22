@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'component_patch_merger.dart';
+import 'component_normalizer.dart';
 import 'gen_ui_prompt_service.dart';
 
 /// Ensures streamed LLM output contains valid, GenUI-parseable A2UI messages.
@@ -10,13 +11,19 @@ class A2uiStreamNormalizer {
   A2uiStreamNormalizer({
     Set<String>? existingSurfaceIds,
     Map<String, Map<String, dynamic>>? existingSurfaces,
+    Iterable<String>? userWidgetNames,
   }) : _existingSurfaceIds = existingSurfaceIds ?? const {},
-       _existingSurfaces = existingSurfaces ?? const {};
+       _existingSurfaces = existingSurfaces ?? const {},
+       _userWidgetNames = {
+         ...userCatalogComponentNames,
+         if (userWidgetNames != null) ...userWidgetNames,
+       };
 
   final _buffer = StringBuffer();
   final _createdSurfaces = <String>{};
   final Set<String> _existingSurfaceIds;
   final Map<String, Map<String, dynamic>> _existingSurfaces;
+  final Set<String> _userWidgetNames;
 
   /// Feeds a chunk and returns zero or more normalized chunks to yield.
   List<String> process(String chunk) {
@@ -109,9 +116,11 @@ class A2uiStreamNormalizer {
         }
 
         if (surfaceId != null && update['components'] is List) {
-          update['components'] = ComponentPatchMerger.mergeJsonComponents(
-            existingSurface: _existingSurfaces[surfaceId],
-            incoming: update['components'] as List,
+          update['components'] = ComponentNormalizer.normalizeJsonList(
+            ComponentPatchMerger.mergeJsonComponents(
+              existingSurface: _existingSurfaces[surfaceId],
+              incoming: update['components'] as List,
+            ),
           );
         }
       }
@@ -152,15 +161,13 @@ class A2uiStreamNormalizer {
         continue;
       }
       final name = item['component'] as String?;
-      if (name != null && _userCatalogComponents.contains(name)) {
+      if (name != null && _userWidgetNames.contains(name)) {
         return userCatalogId;
       }
     }
     return basicCatalogId;
   }
 }
-
-const _userCatalogComponents = {'ScaffoldScreen', 'TextBlock'};
 
 _Match? _findMarkdownJson(String text) {
   final match = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```').firstMatch(text);

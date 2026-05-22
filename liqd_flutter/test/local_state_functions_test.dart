@@ -92,5 +92,37 @@ void main() {
 
       expect(model().getValue<bool>(DataPath('/todos/0/done')), isTrue);
     });
+
+    test('removeFromPath removes item using template context index', () {
+      model().update(DataPath('/todos'), [
+        {'text': 'One'},
+        {'text': 'Two'},
+      ]);
+
+      const RemoveFromPathFunction().executeSync(
+        {'path': '/todos'},
+        context('/todos/1'),
+      );
+
+      final todos = model().getValue<List<Object?>>(DataPath('/todos'));
+      expect(todos, hasLength(1));
+      expect(todos!.first, {'text': 'One'});
+    });
+
+    test('removeFromPath removes item at explicit index', () {
+      model().update(DataPath('/todos'), [
+        {'text': 'One'},
+        {'text': 'Two'},
+      ]);
+
+      const RemoveFromPathFunction().executeSync(
+        {'path': '/todos', 'index': 0},
+        context(),
+      );
+
+      final todos = model().getValue<List<Object?>>(DataPath('/todos'));
+      expect(todos, hasLength(1));
+      expect(todos!.first, {'text': 'Two'});
+    });
   });
 }

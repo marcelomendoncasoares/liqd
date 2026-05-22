@@ -19,6 +19,30 @@ void main() {
       expect(chunks.last, contains('updateComponents'));
     });
 
+    test('injects createSurface with user catalog for layout widgets', () {
+      final normalizer = A2uiStreamNormalizer();
+      final chunks = normalizer.process('''
+```json
+{"version":"v0.9","updateComponents":{"surfaceId":"layout","components":[{"id":"root","component":"VerticalLayout","children":[]}]}}
+```
+''');
+
+      expect(chunks.first, contains(userCatalogId));
+    });
+
+    test('injects createSurface with user catalog for custom widget names', () {
+      final normalizer = A2uiStreamNormalizer(
+        userWidgetNames: {'MetricCard'},
+      );
+      final chunks = normalizer.process('''
+```json
+{"version":"v0.9","updateComponents":{"surfaceId":"dash","components":[{"id":"root","component":"MetricCard","title":"Revenue"}]}}
+```
+''');
+
+      expect(chunks.first, contains(userCatalogId));
+    });
+
     test('injects createSurface with basic catalog for native widgets', () {
       final normalizer = A2uiStreamNormalizer();
       final chunks = normalizer.process('''

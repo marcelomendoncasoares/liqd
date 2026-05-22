@@ -14,6 +14,8 @@ Available local functions (use `"returnType": "void"` on functionCall):
 - `appendToPath` — `{ "path": "/display", "value": "7" }` appends to a string or pushes to an array.
 - `togglePath` — `{ "path": "/todos/0/done" }` flips a boolean.
 - `pushToPath` — `{ "path": "/todos", "value": { ... } }` pushes an object onto an array.
+- `removeFromPath` — `{ "path": "/todos" }` removes the current list item when called
+  from a template row (context like `/todos/0`), or pass `"index": 0` for a fixed slot.
 - `evaluateMathPath` — `{ "path": "/display" }` evaluates a basic +−*/ expression string and writes the result.
 
 Example counter button:
@@ -25,6 +27,16 @@ Example todo add button (with `/newTodo` TextField bound via two-way binding):
 ```json
 "action": {"functionCall": {"call": "pushToPath", "args": {"path": "/todos", "value": {"text": {"path": "/newTodo"}, "done": false}}, "returnType": "void"}}
 ```
+
+Example todo delete button inside a template row at context `/todos/0`:
+```json
+"action": {"functionCall": {"call": "removeFromPath", "args": {"path": "/todos"}, "returnType": "void"}}
+```
+
+Dynamic list rendering — bind children to a data path with a template component id:
+```json
+"children": {"path": "/todos", "componentId": "todoItem"}
+```
 ''';
 
   static List<ClientFunction> get all => const [
@@ -33,6 +45,7 @@ Example todo add button (with `/newTodo` TextField bound via two-way binding):
     AppendToPathFunction(),
     TogglePathFunction(),
     PushToPathFunction(),
+    RemoveFromPathFunction(),
     EvaluateMathPathFunction(),
   ];
 }
@@ -248,6 +261,77 @@ final class PushToPathFunction extends SynchronousClientFunction {
     };
     list.add(value);
     context.update(path, list);
+    return null;
+  }
+}
+
+/// Removes an element from an array at [path].
+///
+/// When [index] is omitted, infers the index from [ExecutionContext.path]
+/// (e.g. context `/todos/2` with array path `/todos` removes index 2).
+final class RemoveFromPathFunction extends SynchronousClientFunction {
+  const RemoveFromPathFunction();
+
+  @override
+  String get name => 'removeFromPath';
+
+  @override
+  String get description =>
+      'Removes an element from an array. Uses the current template context '
+      'index when index is omitted.';
+
+  @override
+  ClientFunctionReturnType get returnType => ClientFunctionReturnType.empty;
+
+  @override
+  Schema get argumentSchema => S.object(
+    properties: {
+      'path': S.string(description: 'Array path, e.g. /todos'),
+      'index': S.integer(
+        description: 'Optional index. Omit inside list templates.',
+      ),
+    },
+    required: ['path'],
+  );
+
+  @override
+  Object? executeSync(JsonMap args, ExecutionContext context) {
+    final arrayPath = _pathArg(args['path']);
+    final index = _resolveRemoveIndex(args['index'], arrayPath, context);
+    if (index == null) {
+      return null;
+    }
+
+    final current = _readAt(context, arrayPath);
+    if (current is! List) {
+      return null;
+    }
+    if (index < 0 || index >= current.length) {
+      return null;
+    }
+
+    final list = List<Object?>.from(current)..removeAt(index);
+    context.update(arrayPath, list);
+    return null;
+  }
+
+  static int? _resolveRemoveIndex(
+    Object? rawIndex,
+    DataPath arrayPath,
+    ExecutionContext context,
+  ) {
+    if (rawIndex is num) {
+      return rawIndex.toInt();
+    }
+
+    final contextPath = context.path.toString();
+    final arrayPathString = arrayPath.toString();
+    if (contextPath.startsWith('$arrayPathString/')) {
+      final suffix = contextPath.substring(arrayPathString.length + 1);
+      final segment = suffix.split('/').first;
+      return int.tryParse(segment);
+    }
+
     return null;
   }
 }

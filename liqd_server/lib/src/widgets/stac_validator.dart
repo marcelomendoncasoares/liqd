@@ -30,9 +30,10 @@ abstract final class StacValidator {
     'listView',
     'gridView',
     'image',
-    'checkbox',
+    'checkBox',
     'switch',
     'slider',
+    'setValue',
     'circularProgressIndicator',
     'linearProgressIndicator',
   };

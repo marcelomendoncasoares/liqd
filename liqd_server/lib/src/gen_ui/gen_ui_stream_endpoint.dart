@@ -90,6 +90,7 @@ class GenUiStreamEndpoint extends Endpoint {
     final normalizer = A2uiStreamNormalizer(
       existingSurfaceIds: existingSurfaceIds,
       existingSurfaces: existingSurfaces,
+      userWidgetNames: widgets.map((widget) => widget.name),
     );
 
     final existingSurfacesMessage =

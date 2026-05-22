@@ -62,7 +62,13 @@ abstract final class ComponentPatchMerger {
       return patch;
     }
 
-    final merged = Map<String, dynamic>.from(prior)..addAll(patch);
+    final merged = Map<String, dynamic>.from(prior);
+    for (final entry in patch.entries) {
+      if (entry.value == null) {
+        continue;
+      }
+      merged[entry.key] = entry.value;
+    }
 
     final priorChildren = prior['children'];
     final patchChildren = patch['children'];

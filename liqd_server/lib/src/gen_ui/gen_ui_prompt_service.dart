@@ -8,6 +8,16 @@ const userCatalogId = 'com.liqd.user_catalog';
 /// GenUI basic catalog for native interactive components (Text, Button, …).
 const basicCatalogId = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 
+/// User-catalog component names (seed widgets + custom widgets use these names).
+const userCatalogComponentNames = {
+  'TextBlock',
+  'PrimaryButton',
+  'TextFieldInput',
+  'VerticalLayout',
+  'HorizontalLayout',
+  'ScaffoldScreen',
+};
+
 /// Builds system prompts for GenUI conversations with catalog context.
 abstract final class GenUiPromptService {
   static List<Map<String, String>> fewShotMessages({bool includeEdit = false}) {
@@ -22,7 +32,9 @@ abstract final class GenUiPromptService {
       },
       {
         'role': 'user',
-        'content': 'Build a todo list with a text field and an Add button.',
+        'content':
+            'Build a todo list with a text field, an Add button, and Delete '
+            'on each item.',
       },
       {
         'role': 'assistant',
@@ -71,13 +83,13 @@ abstract final class GenUiPromptService {
 {"version":"v0.9","updateDataModel":{"surfaceId":"main","path":"/todos","value":[]}}
 ```
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["inputRow"]},{"id":"inputRow","component":"Row","children":["newTodoField","addBtn"]},{"id":"newTodoField","component":"TextField","label":"New todo","value":{"path":"/newTodo"}},{"id":"addBtn","component":"Button","child":"addLabel","action":{"functionCall":{"call":"pushToPath","args":{"path":"/todos","value":{"text":{"path":"/newTodo"},"done":false}},"returnType":"void"}}},{"id":"addLabel","component":"Text","text":"Add"}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["inputRow","todoList"]},{"id":"inputRow","component":"Row","children":["newTodoField","addBtn"]},{"id":"newTodoField","component":"TextField","label":"New todo","value":{"path":"/newTodo"}},{"id":"addBtn","component":"Button","child":"addLabel","action":{"functionCall":{"call":"pushToPath","args":{"path":"/todos","value":{"text":{"path":"/newTodo"},"done":false}},"returnType":"void"}}},{"id":"addLabel","component":"Text","text":"Add"},{"id":"todoList","component":"Column","children":{"path":"/todos","componentId":"todoItem"}},{"id":"todoItem","component":"Row","children":["todoText","deleteBtn"]},{"id":"todoText","component":"Text","text":{"path":"text"}},{"id":"deleteBtn","component":"Button","child":"deleteLabel","action":{"functionCall":{"call":"removeFromPath","args":{"path":"/todos"},"returnType":"void"}}},{"id":"deleteLabel","component":"Text","text":"Delete"}]}}
 ```
 ''';
 
   static const _todoEditFewShot = '''
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["inputRow","clearBtn"]},{"id":"clearBtn","component":"Button","child":"clearLabel","action":{"functionCall":{"call":"setPath","args":{"path":"/newTodo","value":""},"returnType":"void"}}},{"id":"clearLabel","component":"Text","text":"Clear"}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["inputRow","todoList","clearBtn"]},{"id":"clearBtn","component":"Button","child":"clearLabel","action":{"functionCall":{"call":"setPath","args":{"path":"/newTodo","value":""},"returnType":"void"}}},{"id":"clearLabel","component":"Text","text":"Clear"}]}}
 ```
 ''';
 
@@ -109,17 +121,26 @@ Emit blocks in order:
 2. updateDataModel — initial ephemeral state (paths like /count, /todos, /display)
 3. updateComponents — flat components array; one must have id "root"
 
-Native component names (case-sensitive): Column, Row, Text, Button, TextField, CheckBox, Card, List.
+Native component names (case-sensitive):
+$_basicComponentsPrompt
 
 Rules:
 - Text "text" may be a literal string OR a binding like {"path":"/count"}.
 - TextField "value" binds two-way to a data model path.
+- Native Button uses "child" (a component id string), NEVER "label". Put button
+  caption text in a separate Text component and reference it from "child".
+- User-catalog PrimaryButton uses "label" (string) — only with catalogId
+  "$userCatalogId", not with native Button.
+- Column, Row, and List "children" may be a string array of component ids OR a
+  dynamic template: {"path":"/todos","componentId":"todoItem"}.
+- Inside a template row, use relative bindings like {"path":"text"} for fields
+  on the current list item (not "/text" unless that is a root data path).
 - Every Button MUST use local interactivity via functionCall (NOT event):
   "action": {"functionCall": {"call": "<fn>", "args": {...}, "returnType": "void"}}
 - NEVER use action.event for buttons — events are for server-side flows only.
 - Every Button MUST set "child" to a component id AND include a matching Text
   component in the same updateComponents array.
-- Every id listed in Column/Row "children" or Button "child" MUST appear as
+- Every id listed in Column/Row/List "children" or Button "child" MUST appear as
   its own component entry in the same updateComponents array.
 
 $_localStateFunctionsPrompt
@@ -155,17 +176,59 @@ Stac interactivity (reactive UI):
 - Use registry key names in expressions (e.g. count+1) for increments.
 
 User catalog widgets:
-${catalogEntries.map((e) => '- ${e['name']}: ${e['description']}').join('\n')}
+${_formatUserCatalogEntries(catalogEntries)}
 ''';
+  }
+
+  static const _basicComponentsPrompt = '''
+- Column — vertical layout; children: id list or {"path":"…","componentId":"…"}
+- Row — horizontal layout; same children rules as Column
+- List — scrollable list; same children rules as Column
+- Text — display string or {"path":"/key"}; optional variant h1–h5, body, caption
+- Button — requires "child" (component id) + "action"; NEVER use "label"
+- TextField — two-way "value" binding; variants shortText, longText, number, obscured
+- CheckBox — boolean input with label
+- Card — grouped content container
+- Divider — horizontal separator
+- Icon — Material icon by name
+- Image — image from url (string or path binding)
+- Slider — numeric range input
+- Tabs — tabbed navigation
+- Modal — bottom sheet overlay
+- ChoicePicker — single or multi select from options
+- DateTimeInput — date and/or time picker
+- AudioPlayer — audio playback with controls
+- Video — video playback with controls''';
+
+  static String _formatUserCatalogEntries(
+    List<Map<String, Object?>> catalogEntries,
+  ) {
+    if (catalogEntries.isEmpty) {
+      return '- (none)';
+    }
+    return catalogEntries
+        .map((entry) {
+          final buffer = StringBuffer(
+            '- ${entry['name']}: ${entry['description']}',
+          );
+          final schema = entry['dataSchema'];
+          if (schema != null) {
+            buffer.writeln();
+            buffer.write('  dataSchema: ${jsonEncode(schema)}');
+          }
+          return buffer.toString();
+        })
+        .join('\n');
   }
 
   static const _localStateFunctionsPrompt = '''
 Local client functions (mutate ephemeral data model — no server round-trip):
-- setPath — {"path":"/key","value":<any>}
+- setPath — {"path":"/key","value":<any>} sets int, string, object, or array
 - incrementPath — {"path":"/count","by":1} (by optional)
 - appendToPath — {"path":"/display","value":"7"} (string append or array push)
 - togglePath — {"path":"/todos/0/done"}
 - pushToPath — {"path":"/todos","value":{...}}
+- removeFromPath — {"path":"/todos"} removes current template row; or add "index":0
 - evaluateMathPath — {"path":"/display"} for = on arithmetic strings
 ''';
 
@@ -193,7 +256,7 @@ The user already has a live app. You MUST incrementally modify it:
     }
 
     return '''
-Current app state (preserve surfaceId; components use the same flat array shape as updateComponents):
+Current app state (preserve surfaceId and incrementally edit):
 ```json
 $existingSurfacesJson
 ```
