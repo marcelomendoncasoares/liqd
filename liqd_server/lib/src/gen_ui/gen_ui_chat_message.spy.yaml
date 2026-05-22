@@ -1,0 +1,4 @@
+class: GenUiChatMessage
+fields:
+  role: String
+  content: String

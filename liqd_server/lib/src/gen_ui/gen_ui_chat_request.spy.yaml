@@ -1,0 +1,5 @@
+class: GenUiChatRequest
+fields:
+  model: String?
+  messages: List<GenUiChatMessage>
+  conversationId: String?

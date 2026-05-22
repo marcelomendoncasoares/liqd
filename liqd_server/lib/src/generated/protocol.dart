@@ -16,8 +16,18 @@ import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
     as _i3;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _i4;
-import 'greetings/greeting.dart' as _i5;
-export 'greetings/greeting.dart';
+import 'apps/user_app.dart' as _i5;
+import 'gen_ui/gen_ui_chat_message.dart' as _i6;
+import 'gen_ui/gen_ui_chat_request.dart' as _i7;
+import 'widgets/user_widget.dart' as _i8;
+import 'widgets/widget_validation_result.dart' as _i9;
+import 'package:liqd_server/src/generated/apps/user_app.dart' as _i10;
+import 'package:liqd_server/src/generated/widgets/user_widget.dart' as _i11;
+export 'apps/user_app.dart';
+export 'gen_ui/gen_ui_chat_message.dart';
+export 'gen_ui/gen_ui_chat_request.dart';
+export 'widgets/user_widget.dart';
+export 'widgets/widget_validation_result.dart';
 
 class Protocol extends _i1.DatabaseSerializationManager {
   Protocol._();
@@ -27,6 +37,136 @@ class Protocol extends _i1.DatabaseSerializationManager {
   static final Protocol _instance = Protocol._().._registerHostProtocols();
 
   static final List<_i2.TableDefinition> targetTableDefinitions = [
+    _i2.TableDefinition(
+      name: 'user_app',
+      dartName: 'UserApp',
+      schema: 'public',
+      module: 'liqd',
+      columns: [
+        _i2.ColumnDefinition(
+          name: 'id',
+          columnType: _i2.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _i2.ColumnDefinition(
+          name: 'authUserId',
+          columnType: _i2.ColumnType.uuid,
+          isNullable: false,
+          dartType: 'UuidValue',
+        ),
+        _i2.ColumnDefinition(
+          name: 'title',
+          columnType: _i2.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _i2.ColumnDefinition(
+          name: 'surfaceState',
+          columnType: _i2.ColumnType.json,
+          isNullable: false,
+          dartType: 'Map<String,dynamic>',
+        ),
+        _i2.ColumnDefinition(
+          name: 'createdAt',
+          columnType: _i2.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+        _i2.ColumnDefinition(
+          name: 'updatedAt',
+          columnType: _i2.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+      ],
+      foreignKeys: [],
+      indexes: [],
+      managed: true,
+    ),
+    _i2.TableDefinition(
+      name: 'user_widget',
+      dartName: 'UserWidget',
+      schema: 'public',
+      module: 'liqd',
+      columns: [
+        _i2.ColumnDefinition(
+          name: 'id',
+          columnType: _i2.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _i2.ColumnDefinition(
+          name: 'authUserId',
+          columnType: _i2.ColumnType.uuid,
+          isNullable: false,
+          dartType: 'UuidValue',
+        ),
+        _i2.ColumnDefinition(
+          name: 'name',
+          columnType: _i2.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _i2.ColumnDefinition(
+          name: 'description',
+          columnType: _i2.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _i2.ColumnDefinition(
+          name: 'dataSchema',
+          columnType: _i2.ColumnType.json,
+          isNullable: true,
+          dartType: 'Map<String,dynamic>?',
+        ),
+        _i2.ColumnDefinition(
+          name: 'stacJson',
+          columnType: _i2.ColumnType.json,
+          isNullable: false,
+          dartType: 'Map<String,dynamic>',
+        ),
+        _i2.ColumnDefinition(
+          name: 'isSeed',
+          columnType: _i2.ColumnType.boolean,
+          isNullable: false,
+          dartType: 'bool',
+          columnDefault: 'false',
+        ),
+        _i2.ColumnDefinition(
+          name: 'createdAt',
+          columnType: _i2.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+      ],
+      foreignKeys: [],
+      indexes: [
+        _i2.IndexDefinition(
+          indexName: 'user_widget_name_idx',
+          tableSpace: null,
+          elements: [
+            _i2.IndexElementDefinition(
+              type: _i2.IndexElementDefinitionType.column,
+              definition: 'authUserId',
+            ),
+            _i2.IndexElementDefinition(
+              type: _i2.IndexElementDefinitionType.column,
+              definition: 'name',
+            ),
+          ],
+          type: 'btree',
+          isUnique: true,
+          isPrimary: false,
+        ),
+      ],
+      managed: true,
+    ),
     ..._i3.Protocol.targetTableDefinitions,
     ..._i4.Protocol.targetTableDefinitions,
     ..._i2.Protocol.targetTableDefinitions,
@@ -59,11 +199,92 @@ class Protocol extends _i1.DatabaseSerializationManager {
       }
     }
 
-    if (t == _i5.Greeting) {
-      return _i5.Greeting.fromJson(data) as T;
+    if (t == _i5.UserApp) {
+      return _i5.UserApp.fromJson(data) as T;
     }
-    if (t == _i1.getType<_i5.Greeting?>()) {
-      return (data != null ? _i5.Greeting.fromJson(data) : null) as T;
+    if (t == _i6.GenUiChatMessage) {
+      return _i6.GenUiChatMessage.fromJson(data) as T;
+    }
+    if (t == _i7.GenUiChatRequest) {
+      return _i7.GenUiChatRequest.fromJson(data) as T;
+    }
+    if (t == _i8.UserWidget) {
+      return _i8.UserWidget.fromJson(data) as T;
+    }
+    if (t == _i9.WidgetValidationResult) {
+      return _i9.WidgetValidationResult.fromJson(data) as T;
+    }
+    if (t == _i1.getType<_i5.UserApp?>()) {
+      return (data != null ? _i5.UserApp.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i6.GenUiChatMessage?>()) {
+      return (data != null ? _i6.GenUiChatMessage.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i7.GenUiChatRequest?>()) {
+      return (data != null ? _i7.GenUiChatRequest.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i8.UserWidget?>()) {
+      return (data != null ? _i8.UserWidget.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i9.WidgetValidationResult?>()) {
+      return (data != null ? _i9.WidgetValidationResult.fromJson(data) : null)
+          as T;
+    }
+    if (t == Map<String, dynamic>) {
+      return (data as Map).map(
+            (k, v) => MapEntry(deserialize<String>(k), deserialize<dynamic>(v)),
+          )
+          as T;
+    }
+    if (t == dynamic) {
+      return deserializeDynamicFieldValue(data) as T;
+    }
+    if (t == List<_i6.GenUiChatMessage>) {
+      return (data as List)
+              .map((e) => deserialize<_i6.GenUiChatMessage>(e))
+              .toList()
+          as T;
+    }
+    if (t == _i1.getType<Map<String, dynamic>?>()) {
+      return (data != null
+              ? (data as Map).map(
+                  (k, v) =>
+                      MapEntry(deserialize<String>(k), deserialize<dynamic>(v)),
+                )
+              : null)
+          as T;
+    }
+    if (t == List<String>) {
+      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
+    }
+    if (t == _i1.getType<List<String>?>()) {
+      return (data != null
+              ? (data as List).map((e) => deserialize<String>(e)).toList()
+              : null)
+          as T;
+    }
+    if (t == List<_i10.UserApp>) {
+      return (data as List).map((e) => deserialize<_i10.UserApp>(e)).toList()
+          as T;
+    }
+    if (t == Map<String, dynamic>) {
+      return (data as Map).map(
+            (k, v) => MapEntry(deserialize<String>(k), deserialize<dynamic>(v)),
+          )
+          as T;
+    }
+    if (t == _i1.getType<Map<String, dynamic>?>()) {
+      return (data != null
+              ? (data as Map).map(
+                  (k, v) =>
+                      MapEntry(deserialize<String>(k), deserialize<dynamic>(v)),
+                )
+              : null)
+          as T;
+    }
+    if (t == List<_i11.UserWidget>) {
+      return (data as List).map((e) => deserialize<_i11.UserWidget>(e)).toList()
+          as T;
     }
     try {
       return _i3.Protocol().deserialize<T>(data, t);
@@ -79,7 +300,11 @@ class Protocol extends _i1.DatabaseSerializationManager {
 
   static String? getClassNameForType(Type type) {
     return switch (type) {
-      _i5.Greeting => 'Greeting',
+      _i5.UserApp => 'UserApp',
+      _i6.GenUiChatMessage => 'GenUiChatMessage',
+      _i7.GenUiChatRequest => 'GenUiChatRequest',
+      _i8.UserWidget => 'UserWidget',
+      _i9.WidgetValidationResult => 'WidgetValidationResult',
       _ => null,
     };
   }
@@ -94,8 +319,16 @@ class Protocol extends _i1.DatabaseSerializationManager {
     }
 
     switch (data) {
-      case _i5.Greeting():
-        return 'Greeting';
+      case _i5.UserApp():
+        return 'UserApp';
+      case _i6.GenUiChatMessage():
+        return 'GenUiChatMessage';
+      case _i7.GenUiChatRequest():
+        return 'GenUiChatRequest';
+      case _i8.UserWidget():
+        return 'UserWidget';
+      case _i9.WidgetValidationResult():
+        return 'WidgetValidationResult';
     }
     className = _i3.Protocol().getClassNameForObject(data);
     if (className != null) {
@@ -122,8 +355,20 @@ class Protocol extends _i1.DatabaseSerializationManager {
     if (dataClassName is! String) {
       return super.deserializeByClassName(data);
     }
-    if (dataClassName == 'Greeting') {
-      return deserialize<_i5.Greeting>(data['data']);
+    if (dataClassName == 'UserApp') {
+      return deserialize<_i5.UserApp>(data['data']);
+    }
+    if (dataClassName == 'GenUiChatMessage') {
+      return deserialize<_i6.GenUiChatMessage>(data['data']);
+    }
+    if (dataClassName == 'GenUiChatRequest') {
+      return deserialize<_i7.GenUiChatRequest>(data['data']);
+    }
+    if (dataClassName == 'UserWidget') {
+      return deserialize<_i8.UserWidget>(data['data']);
+    }
+    if (dataClassName == 'WidgetValidationResult') {
+      return deserialize<_i9.WidgetValidationResult>(data['data']);
     }
     if (dataClassName.startsWith('serverpod_auth_idp.')) {
       data['className'] = dataClassName.substring(19);
@@ -164,6 +409,12 @@ class Protocol extends _i1.DatabaseSerializationManager {
       if (table != null) {
         return table;
       }
+    }
+    switch (t) {
+      case _i5.UserApp:
+        return _i5.UserApp.t;
+      case _i8.UserWidget:
+        return _i8.UserWidget.t;
     }
     return null;
   }

@@ -1,3 +1,8 @@
+userApp:
+  - listApps:
+  - getApp:
+  - saveApp:
+  - deleteApp:
 emailIdp:
   - login:
   - startRegistration:
@@ -9,5 +14,11 @@ emailIdp:
   - hasAccount:
 jwtRefresh:
   - refreshAccessToken:
-greeting:
-  - hello:
+genUiStream:
+  - chatStream:
+  - generateWidget:
+widgetCatalog:
+  - listMyWidgets:
+  - createWidget:
+  - deleteWidget:
+  - seedDefaultsForUser:

@@ -1,0 +1,5 @@
+class: WidgetValidationResult
+fields:
+  valid: bool
+  errors: List<String>?
+  stacJson: Map<String, dynamic>?

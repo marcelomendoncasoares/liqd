@@ -1,0 +1,14 @@
+class: UserWidget
+table: user_widget
+fields:
+  authUserId: UuidValue
+  name: String
+  description: String
+  dataSchema: Map<String, dynamic>?
+  stacJson: Map<String, dynamic>
+  isSeed: bool, default=false
+  createdAt: DateTime, default=now
+indexes:
+  user_widget_name_idx:
+    fields: authUserId, name
+    unique: true

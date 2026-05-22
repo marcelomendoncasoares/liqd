@@ -1,0 +1,100 @@
+/* AUTOMATICALLY GENERATED CODE DO NOT MODIFY */
+/*   To generate run: "serverpod generate"    */
+
+// ignore_for_file: implementation_imports
+// ignore_for_file: library_private_types_in_public_api
+// ignore_for_file: non_constant_identifier_names
+// ignore_for_file: public_member_api_docs
+// ignore_for_file: type_literal_in_constant_pattern
+// ignore_for_file: use_super_parameters
+// ignore_for_file: invalid_use_of_internal_member
+
+// ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:serverpod_client/serverpod_client.dart' as _i1;
+import '../gen_ui/gen_ui_chat_message.dart' as _i2;
+import 'package:liqd_client/src/protocol/protocol.dart' as _i3;
+
+abstract class GenUiChatRequest implements _i1.SerializableModel {
+  GenUiChatRequest._({
+    this.model,
+    required this.messages,
+    this.conversationId,
+  });
+
+  factory GenUiChatRequest({
+    String? model,
+    required List<_i2.GenUiChatMessage> messages,
+    String? conversationId,
+  }) = _GenUiChatRequestImpl;
+
+  factory GenUiChatRequest.fromJson(Map<String, dynamic> jsonSerialization) {
+    return GenUiChatRequest(
+      model: jsonSerialization['model'] as String?,
+      messages: _i3.Protocol().deserialize<List<_i2.GenUiChatMessage>>(
+        jsonSerialization['messages'],
+      ),
+      conversationId: jsonSerialization['conversationId'] as String?,
+    );
+  }
+
+  String? model;
+
+  List<_i2.GenUiChatMessage> messages;
+
+  String? conversationId;
+
+  /// Returns a shallow copy of this [GenUiChatRequest]
+  /// with some or all fields replaced by the given arguments.
+  @_i1.useResult
+  GenUiChatRequest copyWith({
+    String? model,
+    List<_i2.GenUiChatMessage>? messages,
+    String? conversationId,
+  });
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      '__className__': 'GenUiChatRequest',
+      if (model != null) 'model': model,
+      'messages': messages.toJson(valueToJson: (v) => v.toJson()),
+      if (conversationId != null) 'conversationId': conversationId,
+    };
+  }
+
+  @override
+  String toString() {
+    return _i1.SerializationManager.encode(this);
+  }
+}
+
+class _Undefined {}
+
+class _GenUiChatRequestImpl extends GenUiChatRequest {
+  _GenUiChatRequestImpl({
+    String? model,
+    required List<_i2.GenUiChatMessage> messages,
+    String? conversationId,
+  }) : super._(
+         model: model,
+         messages: messages,
+         conversationId: conversationId,
+       );
+
+  /// Returns a shallow copy of this [GenUiChatRequest]
+  /// with some or all fields replaced by the given arguments.
+  @_i1.useResult
+  @override
+  GenUiChatRequest copyWith({
+    Object? model = _Undefined,
+    List<_i2.GenUiChatMessage>? messages,
+    Object? conversationId = _Undefined,
+  }) {
+    return GenUiChatRequest(
+      model: model is String? ? model : this.model,
+      messages: messages ?? this.messages.map((e0) => e0.copyWith()).toList(),
+      conversationId: conversationId is String?
+          ? conversationId
+          : this.conversationId,
+    );
+  }
+}
