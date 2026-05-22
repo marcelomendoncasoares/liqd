@@ -9,6 +9,7 @@ import 'component_tree_merger.dart';
 import 'gen_ui_stream_logger.dart';
 import 'gen_ui_update_outcome.dart';
 import 'generation_cancel_token.dart';
+import 'patch_merging_transport.dart';
 import 'serverpod_transport.dart';
 import 'surface_context_builder.dart';
 import 'ui_interaction.dart';
@@ -127,7 +128,16 @@ class GenUiController {
     for (final surfaceId in controller.activeSurfaceIds) {
       final definition = controller.registry.getSurface(surfaceId);
       if (definition != null) {
-        surfaces[surfaceId] = definition.toJson();
+        final surfaceJson = definition.toJson();
+        final dataModel = controller.store
+            .getDataModel(surfaceId)
+            .getValue<Map<String, Object?>>(DataPath.root);
+        if (dataModel != null && dataModel.isNotEmpty) {
+          surfaceJson['dataModel'] = dataModel.map(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+        }
+        surfaces[surfaceId] = surfaceJson;
       }
     }
 
@@ -162,9 +172,13 @@ class GenUiController {
       _onSurfaceUpdate,
     );
     _transport = A2uiTransportAdapter(onSend: _handleSend);
+    final mergingTransport = PatchMergingTransport(
+      inner: _transport!,
+      controller: _surfaceController!,
+    );
     _conversation = Conversation(
       controller: _surfaceController!,
-      transport: _transport!,
+      transport: mergingTransport,
     );
   }
 
@@ -313,6 +327,7 @@ class GenUiController {
           CreateSurface(
             surfaceId: definition.surfaceId,
             catalogId: definition.catalogId,
+            sendDataModel: true,
           ),
         );
         controller.handleMessage(
@@ -320,6 +335,11 @@ class GenUiController {
             surfaceId: definition.surfaceId,
             components: definition.components.values.toList(),
           ),
+        );
+        restoreDataModelForSurface(
+          controller,
+          definition.surfaceId,
+          dataModelFromSurfaceJson(surfaceJson),
         );
       } on Object {
         // Skip invalid saved surfaces.

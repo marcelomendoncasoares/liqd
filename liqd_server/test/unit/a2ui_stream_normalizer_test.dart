@@ -47,5 +47,44 @@ void main() {
       expect(chunks.single, isNot(contains('createSurface')));
       expect(chunks.single, contains('updateComponents'));
     });
+
+    test('strips createSurface for surfaces that already exist', () {
+      final normalizer = A2uiStreamNormalizer(
+        existingSurfaceIds: {'main'},
+      );
+      final chunks = normalizer.process('''
+```json
+{"version":"v0.9","createSurface":{"surfaceId":"main","catalogId":"$basicCatalogId"},"updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["btn"]}]}}
+```
+''');
+
+      expect(chunks.single, isNot(contains('createSurface')));
+      expect(chunks.single, contains('updateComponents'));
+    });
+
+    test('merges children when patching an existing surface', () {
+      final normalizer = A2uiStreamNormalizer(
+        existingSurfaceIds: {'main'},
+        existingSurfaces: {
+          'main': {
+            'surfaceId': 'main',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['inputRow'],
+              },
+            ],
+          },
+        },
+      );
+      final chunks = normalizer.process('''
+```json
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["clearBtn"]},{"id":"clearBtn","component":"Button","child":"clearLabel"}]}}
+```
+''');
+
+      expect(chunks.single, contains('"children":["inputRow","clearBtn"]'));
+    });
   });
 }

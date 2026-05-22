@@ -50,6 +50,9 @@ class GenUiStreamEndpoint extends Endpoint {
     final existingSurfaceIds = GenUiPromptService.parseExistingSurfaceIds(
       request.existingSurfacesJson,
     );
+    final existingSurfaces = _parseExistingSurfaces(
+      request.existingSurfacesJson,
+    );
     final isEdit = existingSurfaceIds.isNotEmpty;
     final systemPrompt = GenUiPromptService.buildSystemPrompt(
       widgets,
@@ -86,6 +89,7 @@ class GenUiStreamEndpoint extends Endpoint {
     final buffer = StringBuffer();
     final normalizer = A2uiStreamNormalizer(
       existingSurfaceIds: existingSurfaceIds,
+      existingSurfaces: existingSurfaces,
     );
 
     final existingSurfacesMessage =
@@ -327,6 +331,29 @@ class GenUiStreamEndpoint extends Endpoint {
       return value;
     }
     return '${value.substring(0, maxLength)}...';
+  }
+
+  Map<String, Map<String, dynamic>> _parseExistingSurfaces(
+    String? existingSurfacesJson,
+  ) {
+    if (existingSurfacesJson == null || existingSurfacesJson.trim().isEmpty) {
+      return const {};
+    }
+    try {
+      final decoded = jsonDecode(existingSurfacesJson) as Map<String, dynamic>;
+      final surfaces = decoded['surfaces'];
+      if (surfaces is! Map) {
+        return const {};
+      }
+      return surfaces.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          Map<String, dynamic>.from(value as Map),
+        ),
+      );
+    } on FormatException {
+      return const {};
+    }
   }
 
   bool _isClientErrorFeedback(GenUiChatRequest request) {

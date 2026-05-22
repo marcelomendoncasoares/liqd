@@ -1,17 +1,22 @@
 import 'dart:convert';
 
+import 'component_patch_merger.dart';
 import 'gen_ui_prompt_service.dart';
 
 /// Ensures streamed LLM output contains valid, GenUI-parseable A2UI messages.
 ///
 /// Repairs complete JSON blocks and injects missing [createSurface] messages.
 class A2uiStreamNormalizer {
-  A2uiStreamNormalizer({Set<String>? existingSurfaceIds})
-    : _existingSurfaceIds = existingSurfaceIds ?? const {};
+  A2uiStreamNormalizer({
+    Set<String>? existingSurfaceIds,
+    Map<String, Map<String, dynamic>>? existingSurfaces,
+  }) : _existingSurfaceIds = existingSurfaceIds ?? const {},
+       _existingSurfaces = existingSurfaces ?? const {};
 
   final _buffer = StringBuffer();
   final _createdSurfaces = <String>{};
   final Set<String> _existingSurfaceIds;
+  final Map<String, Map<String, dynamic>> _existingSurfaces;
 
   /// Feeds a chunk and returns zero or more normalized chunks to yield.
   List<String> process(String chunk) {
@@ -102,16 +107,30 @@ class A2uiStreamNormalizer {
             })}\n```',
           );
         }
+
+        if (surfaceId != null && update['components'] is List) {
+          update['components'] = ComponentPatchMerger.mergeJsonComponents(
+            existingSurface: _existingSurfaces[surfaceId],
+            incoming: update['components'] as List,
+          );
+        }
       }
 
       if (decoded.containsKey('createSurface')) {
         final create = decoded['createSurface'];
         if (create is Map<String, dynamic>) {
-          create.putIfAbsent('catalogId', () => basicCatalogId);
-          create.putIfAbsent('sendDataModel', () => true);
           final surfaceId = create['surfaceId'] as String?;
-          if (surfaceId != null) {
-            _createdSurfaces.add(surfaceId);
+          if (surfaceId != null && _existingSurfaceIds.contains(surfaceId)) {
+            decoded.remove('createSurface');
+            if (decoded.length <= 1 && decoded.containsKey('version')) {
+              return output;
+            }
+          } else {
+            create.putIfAbsent('catalogId', () => basicCatalogId);
+            create.putIfAbsent('sendDataModel', () => true);
+            if (surfaceId != null) {
+              _createdSurfaces.add(surfaceId);
+            }
           }
         }
       }

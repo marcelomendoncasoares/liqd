@@ -193,7 +193,7 @@ The user already has a live app. You MUST incrementally modify it:
     }
 
     return '''
-Current app state (preserve surfaceId and incrementally edit):
+Current app state (preserve surfaceId; components use the same flat array shape as updateComponents):
 ```json
 $existingSurfacesJson
 ```
