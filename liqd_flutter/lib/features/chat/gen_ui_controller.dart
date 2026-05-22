@@ -6,6 +6,7 @@ import 'package:liqd_client/liqd_client.dart';
 import '../catalog/catalog_builder.dart';
 import '../catalog/stac_template_merger.dart';
 import 'component_tree_merger.dart';
+import 'gen_ui_stream_logger.dart';
 import 'generation_cancel_token.dart';
 import 'serverpod_transport.dart';
 import 'surface_context_builder.dart';
@@ -188,8 +189,26 @@ class GenUiController {
 
     _cancelToken = GenerationCancelToken();
     _streamInFlight = true;
+
+    final parsedMessageTypes = <String>[];
+    var surfaceUpdated = false;
+
+    StreamSubscription<A2uiMessage>? incomingSubscription;
+    StreamSubscription<SurfaceUpdate>? streamSurfaceSubscription;
+
+    incomingSubscription = transport.incomingMessages.listen((parsed) {
+      parsedMessageTypes.add(parsed.runtimeType.toString());
+      GenUiStreamLogger.logParsedMessage(parsed);
+    });
+
+    streamSurfaceSubscription = controller.surfaceUpdates.listen((update) {
+      if (update is ComponentsUpdated || update is SurfaceAdded) {
+        surfaceUpdated = true;
+      }
+    });
+
     try {
-      await streamGenUiFromServer(
+      final rawResponse = await streamGenUiFromServer(
         client: client,
         transport: transport,
         history: List.from(_messageHistory),
@@ -201,7 +220,19 @@ class GenUiController {
           _streamSubscription = subscription;
         },
       );
+
+      GenUiStreamLogger.logStreamComplete(
+        rawResponse: rawResponse,
+        parsedMessageCount: parsedMessageTypes.length,
+        parsedMessageTypes: parsedMessageTypes,
+        surfaceUpdated: surfaceUpdated,
+      );
+    } on Object catch (error, stackTrace) {
+      GenUiStreamLogger.logError(error, stackTrace);
+      rethrow;
     } finally {
+      await incomingSubscription.cancel();
+      await streamSurfaceSubscription.cancel();
       _cancelToken = null;
       _streamSubscription = null;
       _streamInFlight = false;

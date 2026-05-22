@@ -155,7 +155,14 @@ class GenUiStreamEndpoint extends Endpoint {
         }
       }
 
-      await _processNewWidgetBlocks(session, authUserId, buffer.toString());
+      final fullResponse = buffer.toString();
+      _logModelResponse(
+        session,
+        fullResponse: fullResponse,
+        isEdit: isEdit,
+        model: model,
+      );
+      await _processNewWidgetBlocks(session, authUserId, fullResponse);
     } on OpenRouterException catch (error) {
       if (session.serverpod.runMode == ServerpodRunMode.development) {
         session.log(
@@ -282,6 +289,32 @@ class GenUiStreamEndpoint extends Endpoint {
       );
     }
     return UuidValue.fromString(userIdentifier);
+  }
+
+  void _logModelResponse(
+    Session session, {
+    required String fullResponse,
+    required bool isEdit,
+    required String model,
+  }) {
+    if (session.serverpod.runMode != ServerpodRunMode.development) {
+      return;
+    }
+
+    final containsA2ui = GenUiPromptService.responseContainsA2ui(fullResponse);
+    session.log(
+      'GenUI model response model=$model isEdit=$isEdit '
+      '(${fullResponse.length} chars, containsA2ui=$containsA2ui):\n'
+      '$fullResponse',
+      level: LogLevel.info,
+    );
+
+    if (!containsA2ui) {
+      session.log(
+        'Model response has no A2UI messages — preview will not change.',
+        level: LogLevel.warning,
+      );
+    }
   }
 
   static String _truncate(String value, int maxLength) {

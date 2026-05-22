@@ -5,6 +5,7 @@ import 'package:liqd_client/liqd_client.dart';
 
 import '../../config/app_config.dart';
 import 'chat_request_builder.dart';
+import 'gen_ui_stream_logger.dart';
 import 'generation_cancel_token.dart';
 
 const _flushTimeout = Duration(seconds: 5);
@@ -65,7 +66,9 @@ Future<void> _flushTransport(A2uiTransportAdapter transport) async {
 }
 
 /// Streams OpenRouter responses from Serverpod into GenUI.
-Future<void> streamGenUiFromServer({
+///
+/// Returns the full raw model response accumulated from stream chunks.
+Future<String> streamGenUiFromServer({
   required Client client,
   required A2uiTransportAdapter transport,
   required List<GenUiChatMessage> history,
@@ -82,6 +85,14 @@ Future<void> streamGenUiFromServer({
     messages: messages,
     existingSurfacesJson: existingSurfacesJson,
   );
+
+  GenUiStreamLogger.logRequest(
+    userMessage: message.text,
+    existingSurfacesJson: existingSurfacesJson,
+    model: request.model ?? defaultModel,
+  );
+
+  final rawResponse = StringBuffer();
 
   try {
     final stream = client.genUiStream.chatStream(request);
@@ -125,6 +136,8 @@ Future<void> streamGenUiFromServer({
         if (cancelToken.isCancelled || streamClosed) {
           return;
         }
+        rawResponse.write(chunk);
+        GenUiStreamLogger.logRawChunk(chunk);
         try {
           transport.addChunk(chunk);
         } on StateError {
@@ -153,14 +166,15 @@ Future<void> streamGenUiFromServer({
     }
 
     await completer.future;
+    return rawResponse.toString();
   } on GenUiStreamException catch (error) {
     if (cancelToken.isCancelled) {
-      return;
+      return rawResponse.toString();
     }
     throw Exception(error.message);
   } catch (error) {
     if (cancelToken.isCancelled) {
-      return;
+      return rawResponse.toString();
     }
     throw Exception(_formatStreamError(error));
   }
