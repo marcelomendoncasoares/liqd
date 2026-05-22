@@ -4,6 +4,7 @@ import 'package:serverpod_flutter/serverpod_flutter.dart';
 import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 import 'package:stac/stac.dart';
 
+import 'features/catalog/liqd_stac_setup.dart';
 import 'features/apps/apps_list_screen.dart';
 import 'features/apps/settings_screen.dart';
 import 'screens/sign_in_screen.dart';
@@ -13,6 +14,7 @@ late final Client client;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Stac.initialize();
+  LiqdStacSetup.register();
 
   final serverUrl = await getServerUrl();
 

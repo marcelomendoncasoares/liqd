@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:liqd_client/liqd_client.dart';
-import 'package:stac/stac.dart';
 
 import '../../config/app_config.dart';
+import 'reactive_stac_host.dart';
 import 'stac_template_merger.dart';
 
 /// Builds GenUI catalogs from server-side [UserWidget] entries.
@@ -25,7 +24,9 @@ abstract final class CatalogBuilder {
       catalogId: userCatalogId,
       systemPromptFragments: [
         'User Stac widgets (ScaffoldScreen, TextBlock, …): embed Stac JSON in '
-        'component data fields like body.',
+            'component data fields like body.',
+        'Stac interactivity: wrap body in setValue widget to init registry keys, '
+            'bind text with {{key}}, and use onPressed setValue actions on elevatedButton.',
       ],
     );
   }
@@ -37,12 +38,7 @@ abstract final class CatalogBuilder {
       widgetBuilder: (itemContext) {
         final params = extractComponentData(itemContext.data);
         final merged = deepMergeStacTemplate(widget.stacJson, params);
-        final rendered = Stac.fromJson(merged, itemContext.buildContext);
-        return rendered ??
-            Text(
-              'Failed to render ${widget.name}',
-              style: TextStyle(color: itemContext.buildContext.errorColor),
-            );
+        return ReactiveStacHost(stacJson: merged);
       },
     );
   }
@@ -53,8 +49,4 @@ abstract final class CatalogBuilder {
     }
     return Schema.fromMap(schemaMap.cast<String, Object?>());
   }
-}
-
-extension on BuildContext {
-  Color? get errorColor => Theme.of(this).colorScheme.error;
 }

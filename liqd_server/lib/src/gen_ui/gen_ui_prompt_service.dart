@@ -4,8 +4,7 @@ import '../generated/protocol.dart';
 const userCatalogId = 'com.liqd.user_catalog';
 
 /// GenUI basic catalog for native interactive components (Text, Button, …).
-const basicCatalogId =
-    'https://a2ui.org/specification/v0_9/basic_catalog.json';
+const basicCatalogId = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 
 /// Builds system prompts for GenUI conversations with catalog context.
 abstract final class GenUiPromptService {
@@ -17,7 +16,8 @@ abstract final class GenUiPromptService {
       },
       {
         'role': 'assistant',
-        'content': '''
+        'content':
+            '''
 ```json
 {"version":"v0.9","createSurface":{"surfaceId":"counter","catalogId":"$basicCatalogId","sendDataModel":true}}
 ```
@@ -80,6 +80,14 @@ Counter pattern:
 
 For ScaffoldScreen and user catalog widgets use catalogId "$userCatalogId".
 Embed Stac JSON only inside component data fields (body, children).
+
+Stac interactivity (reactive UI):
+- Initialize state with a setValue widget wrapping the body:
+  {"type":"setValue","values":[{"key":"count","value":0}],"child":{...}}
+- Display dynamic values with registry bindings: {"type":"text","data":"{{count}}"}
+- Every elevatedButton MUST include onPressed with a setValue action:
+  {"type":"setValue","values":[{"key":"count","value":"count+1"}]}
+- Use registry key names in expressions (e.g. count+1) for increments.
 
 User catalog widgets:
 ${catalogEntries.map((e) => '- ${e['name']}: ${e['description']}').join('\n')}
