@@ -126,6 +126,77 @@ void main() {
       });
     },
   );
+
+  group(
+    'Given a calculator with a trailing operator, '
+    'when equals is pressed,',
+    () {
+      test('then the display evaluates without calling the model.', () {
+        final controller = _calculatorController(
+          initialDisplay: '205843652.2/0+',
+        );
+        addTearDown(controller.dispose);
+
+        final handled = LocalActionHandler.tryHandle(
+          controller: controller,
+          message: _actionMessage(
+            name: 'equals',
+            surfaceId: 'calculator',
+            sourceComponentId: 'btnEquals',
+          ),
+        );
+
+        expect(handled, isTrue);
+        expect(_displayValue(controller, 'calculator'), 'Error');
+      });
+    },
+  );
+
+  group(
+    'Given a calculator button labeled "/", '
+    'when the action name is generic,',
+    () {
+      test('then the operator is inferred from the label.', () {
+        final controller = _calculatorController(initialDisplay: '12');
+        addTearDown(controller.dispose);
+
+        controller.handleMessage(
+          UpdateComponents(
+            surfaceId: 'calculator',
+            components: [
+              const Component(
+                id: 'btnDiv',
+                type: 'Button',
+                properties: {
+                  'child': 'labelDiv',
+                  'action': {
+                    'event': {'name': 'press'},
+                  },
+                },
+              ),
+              const Component(
+                id: 'labelDiv',
+                type: 'Text',
+                properties: {'text': '/'},
+              ),
+            ],
+          ),
+        );
+
+        final handled = LocalActionHandler.tryHandle(
+          controller: controller,
+          message: _actionMessage(
+            name: 'press',
+            surfaceId: 'calculator',
+            sourceComponentId: 'btnDiv',
+          ),
+        );
+
+        expect(handled, isTrue);
+        expect(_displayValue(controller, 'calculator'), '12/');
+      });
+    },
+  );
 }
 
 SurfaceController _calculatorController({String initialDisplay = '0'}) {

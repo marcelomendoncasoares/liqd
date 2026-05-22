@@ -58,6 +58,32 @@ void main() {
       expect(messages, hasLength(6));
       expect(messages[4]['content'], contains('clear button'));
       expect(messages.last['content'], contains('btnClear'));
+      expect(messages.last['content'], contains('"root"'));
+    });
+
+    test('responseContainsA2ui detects A2UI message keys', () {
+      expect(
+        GenUiPromptService.responseContainsA2ui(
+          'Here is the update: {"updateComponents":{}}',
+        ),
+        isTrue,
+      );
+      expect(
+        GenUiPromptService.responseContainsA2ui(
+          'Sure, I added a clear button.',
+        ),
+        isFalse,
+      );
+    });
+
+    test('augmentUserMessageForEdit appends A2UI-only instruction', () {
+      final augmented = GenUiPromptService.augmentUserMessageForEdit(
+        'Add a clear button',
+      );
+
+      expect(augmented, contains('Add a clear button'));
+      expect(augmented, contains('updateComponents'));
+      expect(augmented, contains('No explanatory text'));
     });
   });
 }

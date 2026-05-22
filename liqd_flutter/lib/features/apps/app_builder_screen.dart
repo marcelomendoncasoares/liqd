@@ -117,7 +117,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
       return;
     }
     setState(() {
-      _isWaiting = state.isWaiting;
+      _isWaiting = state.isWaiting || _genUiController.isGenerating;
       if (state.latestText.isNotEmpty) {
         _latestAssistantText = state.latestText;
       }
@@ -131,21 +131,26 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
           if (!_surfaceIds.contains(surfaceId)) {
             _surfaceIds.add(surfaceId);
           }
+          _upsertAssistantMessage('App created.');
         });
       case ConversationComponentsUpdated(:final surfaceId):
         setState(() {
           if (!_surfaceIds.contains(surfaceId)) {
             _surfaceIds.add(surfaceId);
           }
+          _upsertAssistantMessage('App updated.');
         });
       case ConversationSurfaceRemoved(:final surfaceId):
         setState(() {
           _surfaceIds.remove(surfaceId);
         });
       case ConversationContentReceived(:final text):
+        // App builder output is the preview, not chat prose from the model.
+        if (_looksLikeA2uiPayload(text)) {
+          return;
+        }
         setState(() {
           _latestAssistantText = text;
-          _upsertAssistantMessage(text);
         });
       case ConversationError(:final error):
         if (!mounted) {
@@ -182,6 +187,14 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     }
   }
 
+  bool _looksLikeA2uiPayload(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('updatecomponents') ||
+        lower.contains('createsurface') ||
+        lower.contains('updatedatamodel') ||
+        lower.contains('```json');
+  }
+
   Future<void> _sendMessage() async {
     final text = _textController.text;
     if (text.trim().isEmpty || _isWaiting) {
@@ -198,6 +211,12 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
 
   Future<void> _stopGeneration() async {
     await _genUiController.stopGeneration();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isWaiting = _genUiController.isGenerating;
+    });
   }
 
   Future<void> _retryLastMessage() async {

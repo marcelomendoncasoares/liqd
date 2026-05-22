@@ -16,7 +16,8 @@ final class LocalCalculatorActionDelegate implements ActionDelegate {
     BuildContext context,
     UiEvent event,
     SurfaceContext genUiContext,
-    Widget Function(SurfaceDefinition, Catalog, String, DataContext) buildWidget,
+    Widget Function(SurfaceDefinition, Catalog, String, DataContext)
+    buildWidget,
   ) {
     if (event is! UserActionEvent) {
       return false;
@@ -42,8 +43,12 @@ final class LocalCalculatorActionDelegate implements ActionDelegate {
     }
 
     return LocalActionHandler.tryHandle(
-      controller: controller,
-      message: message,
-    );
+          controller: controller,
+          message: message,
+        ) ||
+        LocalActionHandler.shouldConsumeWithoutServer(
+          controller: controller,
+          message: message,
+        );
   }
 }

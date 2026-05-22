@@ -7,6 +7,11 @@ abstract final class LocalActionHandler {
   static final _defaultDisplayPath = DataPath('/display');
   static final _countPath = DataPath('/count');
 
+  /// Whether [message] is a GenUI UI interaction (button tap, etc.).
+  static bool isUiInteraction(ChatMessage message) {
+    return _decodeInteractionEnvelope(message) != null;
+  }
+
   /// Whether [message] is a GenUI client-side error report (not a user prompt).
   static bool isErrorFeedback(ChatMessage message) {
     final envelope = _decodeInteractionEnvelope(message);
@@ -31,6 +36,96 @@ abstract final class LocalActionHandler {
     } on Object {
       return false;
     }
+  }
+
+  /// Swallows calculator button taps that should never reach the LLM.
+  static bool shouldConsumeWithoutServer({
+    required SurfaceController controller,
+    required ChatMessage message,
+  }) {
+    final envelope = _decodeInteractionEnvelope(message);
+    if (envelope == null) {
+      return false;
+    }
+
+    final action = envelope['action'];
+    if (action is! Map) {
+      return false;
+    }
+    final actionMap = _stringKeyMap(action);
+    final surfaceId = _resolveSurfaceId(controller, actionMap);
+    if (surfaceId == null || !_isCalculatorLike(controller, surfaceId)) {
+      return false;
+    }
+
+    final name = (actionMap['name'] as String?)?.toLowerCase() ?? '';
+    if (_isCalculatorActionName(name)) {
+      return true;
+    }
+
+    final sourceId = (actionMap['sourceComponentId'] as String?)?.toLowerCase();
+    return sourceId != null &&
+        (sourceId.startsWith('btn') || sourceId.contains('button'));
+  }
+
+  static bool _isCalculatorActionName(String name) {
+    return const {
+      'digit',
+      'number',
+      'input',
+      'append',
+      'appenddigit',
+      'clear',
+      'reset',
+      'cleardisplay',
+      'clear_display',
+      'equals',
+      'equal',
+      'calculate',
+      'evaluate',
+      'compute',
+      'decimal',
+      'dot',
+      'period',
+      'point',
+      'add',
+      'plus',
+      'subtract',
+      'minus',
+      'sub',
+      'multiply',
+      'mul',
+      'times',
+      'divide',
+      'div',
+      'operator',
+      'op',
+    }.contains(name);
+  }
+
+  static bool _isCalculatorLike(
+    SurfaceController controller,
+    String surfaceId,
+  ) {
+    if (surfaceId == 'calculator') {
+      return true;
+    }
+
+    final definition = controller.registry.getSurface(surfaceId);
+    if (definition == null) {
+      return false;
+    }
+
+    for (final component in definition.components.values) {
+      if (component.type != 'Text') {
+        continue;
+      }
+      final text = component.properties['text'];
+      if (text is Map && text['path'] == '/display') {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Appends [digit] to a calculator display string.
@@ -78,14 +173,23 @@ abstract final class LocalActionHandler {
       return _handleEquals(controller, action, surfaceId);
     }
 
-    final operator = _inferOperator(name, action);
+    final label = _buttonLabelText(controller, surfaceId, action);
+    if (label == '=') {
+      return _handleEquals(controller, action, surfaceId);
+    }
+
+    final operator = _inferOperator(controller, surfaceId, name, action);
     if (operator != null) {
       return _appendOperator(controller, action, surfaceId, operator);
     }
 
-    final digit = _inferDigit(name, action);
+    final digit = _inferDigit(controller, surfaceId, name, action);
     if (digit != null) {
       return _appendDigit(controller, action, surfaceId, digit);
+    }
+
+    if (_isCalculatorLike(controller, surfaceId)) {
+      return true;
     }
 
     return false;
@@ -119,10 +223,15 @@ abstract final class LocalActionHandler {
     String surfaceId,
   ) {
     final displayPath = _displayPathFor(controller, surfaceId);
-    final current = _readDisplay(controller, surfaceId, displayPath);
+    var current = _readDisplay(controller, surfaceId, displayPath);
+    current = current.replaceAll(RegExp(r'[+\-*/]+$'), '');
+    if (current.isEmpty) {
+      return true;
+    }
+
     final result = _evaluateExpression(current);
     if (result == null) {
-      return false;
+      return _writeDisplay(controller, surfaceId, displayPath, 'Error');
     }
     return _writeDisplay(
       controller,
@@ -260,9 +369,13 @@ abstract final class LocalActionHandler {
   }
 
   static bool _isClearAction(String name, Map<String, dynamic> action) {
-    if (const {'clear', 'reset', 'cleardisplay', 'clear_display'}.contains(
-      name,
-    )) {
+    if (const {
+      'clear',
+      'reset',
+      'cleardisplay',
+      'clear_display',
+      'c',
+    }.contains(name)) {
       return true;
     }
     final sourceId = (action['sourceComponentId'] as String?)?.toLowerCase();
@@ -281,10 +394,18 @@ abstract final class LocalActionHandler {
     }
     final sourceId = (action['sourceComponentId'] as String?)?.toLowerCase();
     return sourceId != null &&
-        (sourceId.contains('equal') || sourceId.contains('equals'));
+        (sourceId.contains('equal') ||
+            sourceId.contains('equals') ||
+            sourceId == 'btn=' ||
+            sourceId.endsWith('eq'));
   }
 
-  static String? _inferDigit(String name, Map<String, dynamic> action) {
+  static String? _inferDigit(
+    SurfaceController controller,
+    String surfaceId,
+    String name,
+    Map<String, dynamic> action,
+  ) {
     final context = _stringKeyMap(action['context']);
     for (final key in ['digit', 'value', 'number', 'char', 'key']) {
       final candidate = context[key]?.toString();
@@ -293,22 +414,33 @@ abstract final class LocalActionHandler {
       }
     }
 
+    if (const {'decimal', 'dot', 'period', 'point'}.contains(name)) {
+      return '.';
+    }
+
     if (RegExp(r'^\d$').hasMatch(name)) {
       return name;
     }
 
     final fromName = RegExp(
-      r'(?:digit|number|num|key|press|btn)[_\-]?(\d|dot)$',
+      r'(?:digit|number|num|key|press|btn)[_\-]?(\d|dot|decimal|period)$',
       caseSensitive: false,
     ).firstMatch(name);
     if (fromName != null) {
-      return fromName.group(1) == 'dot' ? '.' : fromName.group(1);
+      final token = fromName.group(1);
+      if (token == 'dot' || token == 'decimal' || token == 'period') {
+        return '.';
+      }
+      return token;
     }
 
     final sourceId = action['sourceComponentId'] as String?;
     if (sourceId != null) {
       final lower = sourceId.toLowerCase();
-      if (lower == 'btndot') {
+      if (lower == 'btndot' ||
+          lower == 'btndecimal' ||
+          lower == 'btnperiod' ||
+          lower == 'btnpoint') {
         return '.';
       }
       final fromButton = RegExp(r'^btn(\d)$', caseSensitive: false).firstMatch(
@@ -325,10 +457,73 @@ abstract final class LocalActionHandler {
       return context['digit']?.toString() ?? context['value']?.toString();
     }
 
+    return _inferDigitFromLabel(controller, surfaceId, action);
+  }
+
+  static String? _inferDigitFromLabel(
+    SurfaceController controller,
+    String surfaceId,
+    Map<String, dynamic> action,
+  ) {
+    final label = _buttonLabelText(controller, surfaceId, action);
+    if (label != null && _isDigitOrDot(label)) {
+      return label;
+    }
     return null;
   }
 
-  static String? _inferOperator(String name, Map<String, dynamic> action) {
+  static String? _inferOperatorFromLabel(
+    SurfaceController controller,
+    String surfaceId,
+    Map<String, dynamic> action,
+  ) {
+    final label = _buttonLabelText(controller, surfaceId, action);
+    if (label != null && _isOperatorChar(label)) {
+      return label;
+    }
+    return null;
+  }
+
+  static String? _buttonLabelText(
+    SurfaceController controller,
+    String surfaceId,
+    Map<String, dynamic> action,
+  ) {
+    final sourceId = action['sourceComponentId'] as String?;
+    if (sourceId == null) {
+      return null;
+    }
+
+    final definition = controller.registry.getSurface(surfaceId);
+    if (definition == null) {
+      return null;
+    }
+
+    final button = definition.components[sourceId];
+    if (button == null || button.type != 'Button') {
+      return null;
+    }
+
+    final childId = button.properties['child'];
+    if (childId is! String) {
+      return null;
+    }
+
+    final label = definition.components[childId];
+    if (label == null || label.type != 'Text') {
+      return null;
+    }
+
+    final text = label.properties['text'];
+    return text is String ? text : null;
+  }
+
+  static String? _inferOperator(
+    SurfaceController controller,
+    String surfaceId,
+    String name,
+    Map<String, dynamic> action,
+  ) {
     final context = _stringKeyMap(action['context']);
     for (final key in ['operator', 'op', 'symbol']) {
       final candidate = context[key]?.toString();
@@ -378,7 +573,7 @@ abstract final class LocalActionHandler {
       return context['operator']?.toString() ?? context['op']?.toString();
     }
 
-    return null;
+    return _inferOperatorFromLabel(controller, surfaceId, action);
   }
 
   static bool _isDigitOrDot(String value) {

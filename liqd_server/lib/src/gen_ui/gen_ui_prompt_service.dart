@@ -74,7 +74,7 @@ abstract final class GenUiPromptService {
 
   static const _calculatorEditFewShot = '''
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"calculator","components":[{"id":"rowClear","component":"Row","children":["btnClear"]},{"id":"btnClear","component":"Button","child":"btnClearLabel","action":{"event":{"name":"clear"}}},{"id":"btnClearLabel","component":"Text","text":"C"}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"calculator","components":[{"id":"root","component":"Column","align":"stretch","children":["display","row1","row2","rowClear"]},{"id":"rowClear","component":"Row","children":["btnClear"]},{"id":"btnClear","component":"Button","child":"btnClearLabel","action":{"event":{"name":"clear"}}},{"id":"btnClearLabel","component":"Text","text":"C"}]}}
 ```
 ''';
 
@@ -155,7 +155,11 @@ The user already has a live app. You MUST incrementally modify it:
 - Do NOT emit createSurface unless the user explicitly asks for a new screen.
 - Prefer updateComponents for changed/new components and updateDataModel for state.
 - Only include components you add or change; unchanged components can be omitted.
+- When adding buttons or rows, update the parent component's "children" array so new
+  components are reachable from "root" (orphan components will not appear in the UI).
 - Never rebuild the entire app from scratch unless the user asks to start over.
+- NEVER reply with conversational text, explanations, markdown prose, or summaries.
+  The user cannot see chat replies — only A2UI JSON blocks update the app preview.
 
 ''';
 
@@ -189,5 +193,54 @@ $existingSurfacesJson
     }
 
     return const {};
+  }
+
+  /// Whether an LLM response contains at least one A2UI message type.
+  static bool responseContainsA2ui(String response) {
+    final lower = response.toLowerCase();
+    return lower.contains('updatecomponents') ||
+        lower.contains('createsurface') ||
+        lower.contains('updatedatamodel') ||
+        lower.contains('deletesurface');
+  }
+
+  /// Appends edit-mode instructions to the user's follow-up message.
+  static String augmentUserMessageForEdit(String content) {
+    return '$content\n\n'
+        'Apply this to the existing app shown above. '
+        'Reply with A2UI ```json blocks only (updateComponents and/or '
+        'updateDataModel). No explanatory text.';
+  }
+
+  /// Correction prompt when a follow-up returned prose instead of A2UI.
+  static String a2uiCorrectionMessage() {
+    return 'Your previous reply was plain text. The app preview only updates '
+        'from A2UI JSON. Output ONLY ```json blocks with updateComponents '
+        'and/or updateDataModel for the existing surfaceId. No prose.';
+  }
+
+  static List<Map<String, dynamic>> buildChatMessages({
+    required GenUiChatRequest request,
+    required bool isEdit,
+    required String? existingSurfacesMessage,
+    required String systemPrompt,
+  }) {
+    final userMessages = request.messages;
+    return [
+      {'role': 'system', 'content': systemPrompt},
+      ...fewShotMessages(includeEdit: isEdit),
+      if (existingSurfacesMessage != null)
+        {'role': 'assistant', 'content': existingSurfacesMessage},
+      for (var i = 0; i < userMessages.length; i++)
+        {
+          'role': userMessages[i].role,
+          'content':
+              isEdit &&
+                  userMessages[i].role == 'user' &&
+                  i == userMessages.length - 1
+              ? augmentUserMessageForEdit(userMessages[i].content)
+              : userMessages[i].content,
+        },
+    ];
   }
 }

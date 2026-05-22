@@ -5,6 +5,7 @@ import 'package:liqd_client/liqd_client.dart';
 
 import '../catalog/catalog_builder.dart';
 import '../catalog/stac_template_merger.dart';
+import 'component_tree_merger.dart';
 import 'generation_cancel_token.dart';
 import 'local_action_handler.dart';
 import 'serverpod_transport.dart';
@@ -34,6 +35,7 @@ class GenUiController {
   bool _streamInFlight = false;
   GenerationCancelToken? _cancelToken;
   StreamSubscription<String>? _streamSubscription;
+  StreamSubscription<SurfaceUpdate>? _surfaceUpdatesSubscription;
 
   bool get isGenerating => _streamInFlight;
 
@@ -138,13 +140,29 @@ class GenUiController {
     _conversation?.dispose();
     _transport?.dispose();
     _surfaceController?.dispose();
+    _surfaceUpdatesSubscription?.cancel();
+    _surfaceUpdatesSubscription = null;
 
     _surfaceController = SurfaceController(catalogs: _catalogs);
+    _surfaceUpdatesSubscription = _surfaceController!.surfaceUpdates.listen(
+      _onSurfaceUpdate,
+    );
     _transport = A2uiTransportAdapter(onSend: _handleSend);
     _conversation = Conversation(
       controller: _surfaceController!,
       transport: _transport!,
     );
+  }
+
+  void _onSurfaceUpdate(SurfaceUpdate update) {
+    if (update is! ComponentsUpdated) {
+      return;
+    }
+    final controller = _surfaceController;
+    if (controller == null) {
+      return;
+    }
+    ComponentTreeMerger.linkOrphans(controller, update.surfaceId);
   }
 
   Future<void> _handleSend(ChatMessage message) async {
@@ -160,7 +178,23 @@ class GenUiController {
       return;
     }
 
-    if (LocalActionHandler.tryHandle(
+    if (LocalActionHandler.isUiInteraction(message)) {
+      if (LocalActionHandler.tryHandle(
+        controller: controller,
+        message: message,
+      )) {
+        return;
+      }
+      if (LocalActionHandler.shouldConsumeWithoutServer(
+        controller: controller,
+        message: message,
+      )) {
+        return;
+      }
+      if (_streamInFlight) {
+        return;
+      }
+    } else if (LocalActionHandler.tryHandle(
       controller: controller,
       message: message,
     )) {
@@ -250,6 +284,7 @@ class GenUiController {
   void dispose() {
     _cancelToken?.cancel();
     _streamSubscription?.cancel();
+    _surfaceUpdatesSubscription?.cancel();
     _conversation?.dispose();
     _transport?.dispose();
     _surfaceController?.dispose();

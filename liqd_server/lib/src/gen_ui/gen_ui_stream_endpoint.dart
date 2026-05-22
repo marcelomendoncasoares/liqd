@@ -92,15 +92,12 @@ class GenUiStreamEndpoint extends Endpoint {
           request.existingSurfacesJson,
         );
 
-    final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': systemPrompt},
-      ...GenUiPromptService.fewShotMessages(includeEdit: isEdit),
-      if (existingSurfacesMessage != null)
-        {'role': 'assistant', 'content': existingSurfacesMessage},
-      ...request.messages.map(
-        (m) => {'role': m.role, 'content': m.content},
-      ),
-    ];
+    var messages = GenUiPromptService.buildChatMessages(
+      request: request,
+      isEdit: isEdit,
+      existingSurfacesMessage: existingSurfacesMessage,
+      systemPrompt: systemPrompt,
+    );
 
     final client = OpenRouterClient(
       apiKey: apiKey,
@@ -109,17 +106,53 @@ class GenUiStreamEndpoint extends Endpoint {
     );
 
     try {
-      await for (final chunk in client.streamChat(
-        model: model,
-        messages: messages,
-      )) {
-        buffer.write(chunk);
-        for (final normalized in normalizer.process(chunk)) {
+      if (isEdit) {
+        var fullResponse = await _collectOpenRouterResponse(
+          client: client,
+          model: model,
+          messages: messages,
+        );
+
+        if (!GenUiPromptService.responseContainsA2ui(fullResponse)) {
+          session.log(
+            'Follow-up response lacked A2UI; retrying with correction prompt.',
+            level: LogLevel.info,
+          );
+          messages = [
+            ...messages,
+            {'role': 'assistant', 'content': fullResponse},
+            {
+              'role': 'user',
+              'content': GenUiPromptService.a2uiCorrectionMessage(),
+            },
+          ];
+          fullResponse = await _collectOpenRouterResponse(
+            client: client,
+            model: model,
+            messages: messages,
+          );
+        }
+
+        buffer.write(fullResponse);
+        for (final normalized in normalizer.process(fullResponse)) {
           yield normalized;
         }
-      }
-      for (final normalized in normalizer.flush()) {
-        yield normalized;
+        for (final normalized in normalizer.flush()) {
+          yield normalized;
+        }
+      } else {
+        await for (final chunk in client.streamChat(
+          model: model,
+          messages: messages,
+        )) {
+          buffer.write(chunk);
+          for (final normalized in normalizer.process(chunk)) {
+            yield normalized;
+          }
+        }
+        for (final normalized in normalizer.flush()) {
+          yield normalized;
+        }
       }
 
       await _processNewWidgetBlocks(session, authUserId, buffer.toString());
@@ -153,6 +186,21 @@ class GenUiStreamEndpoint extends Endpoint {
     for (final normalized in normalizer.flush()) {
       yield normalized;
     }
+  }
+
+  Future<String> _collectOpenRouterResponse({
+    required OpenRouterClient client,
+    required String model,
+    required List<Map<String, dynamic>> messages,
+  }) async {
+    final buffer = StringBuffer();
+    await for (final chunk in client.streamChat(
+      model: model,
+      messages: messages,
+    )) {
+      buffer.write(chunk);
+    }
+    return buffer.toString();
   }
 
   Future<UserWidget?> generateWidget(
