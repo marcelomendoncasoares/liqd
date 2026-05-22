@@ -9,6 +9,17 @@ String _formatStreamError(Object error) {
   }
 
   final text = error.toString();
+
+  if (error is ConnectionClosedException) {
+    return 'The generation stream ended unexpectedly. '
+        'Try Retry generation or restart the server after running '
+        'serverpod generate.';
+  }
+
+  if (error is MethodStreamException) {
+    return 'Streaming connection error: $text';
+  }
+
   final genUiMatch = RegExp(
     r'GenUiStreamException\(message:\s*(.+)\)\s*$',
   ).firstMatch(text);
@@ -16,7 +27,18 @@ String _formatStreamError(Object error) {
     return genUiMatch.group(1)!;
   }
 
+  final jsonMessage = RegExp(
+    r'"message"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"',
+  ).firstMatch(text);
+  if (jsonMessage != null) {
+    return jsonMessage.group(1)!.replaceAll(r'\"', '"');
+  }
+
   if (text.contains('OpenRouter API key')) {
+    return text.replaceFirst('Exception: ', '');
+  }
+
+  if (text.contains('OpenRouter request failed')) {
     return text.replaceFirst('Exception: ', '');
   }
 
@@ -40,6 +62,9 @@ Future<void> streamGenUiFromServer({
     await for (final chunk in stream) {
       transport.addChunk(chunk);
     }
+    await transport.flush();
+  } on GenUiStreamException catch (error) {
+    throw Exception(error.message);
   } catch (error) {
     throw Exception(_formatStreamError(error));
   }

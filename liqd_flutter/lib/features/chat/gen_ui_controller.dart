@@ -56,13 +56,33 @@ class GenUiController {
 
     _messageHistory.add(GenUiChatMessage(role: 'user', content: trimmed));
     await _conversation!.sendRequest(ChatMessage.user(trimmed));
+    await _reloadCatalogIfNewWidgets();
+  }
+
+  /// Re-sends the last user message without duplicating history.
+  Future<void> retryLastMessage() async {
+    if (_conversation == null || _messageHistory.isEmpty) {
+      return;
+    }
+    final last = _messageHistory.last;
+    if (last.role != 'user') {
+      return;
+    }
+    await _conversation!.sendRequest(ChatMessage.user(last.content));
+    await _reloadCatalogIfNewWidgets();
+  }
+
+  /// Refreshes the catalog only when the server saved new widgets.
+  Future<void> _reloadCatalogIfNewWidgets() async {
+    final widgets = await client.widgetCatalog.listMyWidgets();
+    if (widgets.length <= (_catalog?.items.length ?? 0)) {
+      return;
+    }
 
     final snapshot = exportSnapshot();
-    final widgetCountBefore = _catalog?.items.length ?? 0;
-    await _loadCatalog();
-    if ((_catalog?.items.length ?? 0) > widgetCountBefore) {
-      _restoreSurfaces({'surfaces': snapshot.surfaces});
-    }
+    _catalog = CatalogBuilder.fromUserWidgets(widgets);
+    _rebuildEngine();
+    _restoreSurfaces({'surfaces': snapshot.surfaces});
   }
 
   SurfaceControllerSnapshot exportSnapshot() {

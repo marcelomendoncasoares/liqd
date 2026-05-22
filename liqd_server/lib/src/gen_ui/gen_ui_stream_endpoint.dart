@@ -7,37 +7,9 @@ import '../ai/open_router_client.dart';
 import '../ai/open_router_config.dart';
 import '../widgets/stac_validator.dart';
 import '../widgets/widget_catalog_endpoint.dart';
-
-/// Builds system prompts for GenUI conversations with catalog context.
-abstract final class GenUiPromptService {
-  static String buildSystemPrompt(List<UserWidget> widgets) {
-    final catalogEntries = widgets
-        .map(
-          (w) => {
-            'name': w.name,
-            'description': w.description,
-            if (w.dataSchema != null) 'dataSchema': w.dataSchema,
-          },
-        )
-        .toList();
-
-    return '''
-You are Liqd, an AI assistant that helps users build interactive apps through generative UI.
-
-You MUST use the available widget catalog to compose UI surfaces. When the user asks you to build something, respond with GenUI-compatible A2UI JSON messages that reference catalog widgets by name with appropriate data parameters.
-
-Available widget catalog:
-${catalogEntries.map((e) => '- ${e['name']}: ${e['description']}').join('\n')}
-
-Rules:
-1. Prefer existing catalog widgets whenever they fit the user's request.
-2. Compose complex layouts by nesting widgets (e.g., ScaffoldScreen containing VerticalLayout with TextBlock and PrimaryButton children).
-3. When no catalog widget fits, emit a fenced JSON block with language tag "new-widget" containing: {"name": "...", "description": "...", "dataSchema": {...}, "stacJson": {...}}. The stacJson must use valid Stac widget types (text, column, row, scaffold, elevatedButton, textField, etc.).
-4. Mix plain text explanations with UI generation as appropriate.
-5. Keep widget names PascalCase and unique.
-''';
-  }
-}
+import 'a2ui_stream_normalizer.dart';
+import 'gen_ui_dev_mock.dart';
+import 'gen_ui_prompt_service.dart';
 
 class GenUiStreamEndpoint extends Endpoint {
   @override
@@ -46,6 +18,30 @@ class GenUiStreamEndpoint extends Endpoint {
   static const defaultModel = 'deepseek/deepseek-v4-flash:free';
 
   Stream<String> chatStream(Session session, GenUiChatRequest request) async* {
+    try {
+      yield* _chatStreamImpl(session, request);
+    } catch (error, stackTrace) {
+      if (session.serverpod.runMode == ServerpodRunMode.development) {
+        session.log(
+          'chatStream failed ($error); streaming dev calculator mock.',
+          level: LogLevel.warning,
+        );
+        session.log('$stackTrace', level: LogLevel.debug);
+        yield* _streamDevMock();
+        return;
+      }
+      if (error is GenUiStreamException) {
+        rethrow;
+      }
+      session.log('chatStream failed: $error', level: LogLevel.error);
+      throw GenUiStreamException(message: 'GenUI stream failed: $error');
+    }
+  }
+
+  Stream<String> _chatStreamImpl(
+    Session session,
+    GenUiChatRequest request,
+  ) async* {
     final authUserId = _requireAuthUserId(session);
 
     final catalogEndpoint = WidgetCatalogEndpoint();
@@ -54,9 +50,29 @@ class GenUiStreamEndpoint extends Endpoint {
 
     final apiKey = OpenRouterConfig.resolveApiKey(session);
     if (apiKey == null) {
+      if (session.serverpod.runMode == ServerpodRunMode.development) {
+        session.log(
+          'OpenRouter API key missing; streaming dev calculator mock.',
+          level: LogLevel.warning,
+        );
+        yield* _streamDevMock();
+        return;
+      }
       session.log(OpenRouterConfig.missingKeyMessage(), level: LogLevel.error);
       throw GenUiStreamException(message: OpenRouterConfig.missingKeyMessage());
     }
+
+    final model = request.model ?? defaultModel;
+    final buffer = StringBuffer();
+    final normalizer = A2uiStreamNormalizer();
+
+    final messages = <Map<String, dynamic>>[
+      {'role': 'system', 'content': systemPrompt},
+      ...GenUiPromptService.fewShotMessages(),
+      ...request.messages.map(
+        (m) => {'role': m.role, 'content': m.content},
+      ),
+    ];
 
     final client = OpenRouterClient(
       apiKey: apiKey,
@@ -64,27 +80,30 @@ class GenUiStreamEndpoint extends Endpoint {
       appName: 'Liqd',
     );
 
-    final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': systemPrompt},
-      ...request.messages.map(
-        (m) => {'role': m.role, 'content': m.content},
-      ),
-    ];
-
-    final model = request.model ?? defaultModel;
-    final buffer = StringBuffer();
-
     try {
       await for (final chunk in client.streamChat(
         model: model,
         messages: messages,
       )) {
         buffer.write(chunk);
-        yield chunk;
+        for (final normalized in normalizer.process(chunk)) {
+          yield normalized;
+        }
+      }
+      for (final normalized in normalizer.flush()) {
+        yield normalized;
       }
 
       await _processNewWidgetBlocks(session, authUserId, buffer.toString());
     } on OpenRouterException catch (error) {
+      if (session.serverpod.runMode == ServerpodRunMode.development) {
+        session.log(
+          'OpenRouter failed (${error.statusCode}); streaming dev calculator mock.',
+          level: LogLevel.warning,
+        );
+        yield* _streamDevMock();
+        return;
+      }
       session.log('OpenRouter error: $error', level: LogLevel.error);
       throw GenUiStreamException(
         message:
@@ -93,6 +112,18 @@ class GenUiStreamEndpoint extends Endpoint {
       );
     } finally {
       client.close();
+    }
+  }
+
+  Stream<String> _streamDevMock() async* {
+    final normalizer = A2uiStreamNormalizer();
+    await for (final chunk in GenUiDevMock.streamCalculator()) {
+      for (final normalized in normalizer.process(chunk)) {
+        yield normalized;
+      }
+    }
+    for (final normalized in normalizer.flush()) {
+      yield normalized;
     }
   }
 
@@ -170,7 +201,9 @@ class GenUiStreamEndpoint extends Endpoint {
   UuidValue _requireAuthUserId(Session session) {
     final userIdentifier = session.authenticated?.userIdentifier;
     if (userIdentifier == null) {
-      throw ArgumentError('Authentication required.');
+      throw GenUiStreamException(
+        message: 'Authentication required. Sign in and try again.',
+      );
     }
     return UuidValue.fromString(userIdentifier);
   }

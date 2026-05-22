@@ -55,6 +55,13 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.client.auth.isAuthenticated && !_isSignedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _updateSignedInState();
+        }
+      });
+    }
     return _isSignedIn
         ? widget.child
         : Scaffold(

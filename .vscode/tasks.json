@@ -5,12 +5,15 @@
       "label": "serverpod_start",
       "type": "shell",
       "command": "serverpod",
-      "args": ["start"],
+      "args": [
+        "start",
+        "--flutter-option=-t",
+        "--flutter-option=lib/driver_main.dart"
+      ],
       "options": {
         "cwd": "${workspaceFolder}/liqd_server",
         "env": {
-          "SERVERPOD_PASSWORD_database": "TTcgCAbOMM8aFGWZ5_EjOJT8J70WmPWL",
-          "SERVERPOD_PASSWORD_openRouterApiKey": "${env:OPENROUTER_API_KEY}"
+          "SERVERPOD_PASSWORD_database": "TTcgCAbOMM8aFGWZ5_EjOJT8J70WmPWL"
         }
       },
       "isBackground": true,

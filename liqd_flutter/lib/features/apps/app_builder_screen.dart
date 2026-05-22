@@ -112,6 +112,12 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
             _surfaceIds.add(surfaceId);
           }
         });
+      case ConversationComponentsUpdated(:final surfaceId):
+        setState(() {
+          if (!_surfaceIds.contains(surfaceId)) {
+            _surfaceIds.add(surfaceId);
+          }
+        });
       case ConversationSurfaceRemoved(:final surfaceId):
         setState(() {
           _surfaceIds.remove(surfaceId);
@@ -167,6 +173,24 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
       _latestAssistantText = '';
     });
     await _genUiController.sendMessage(text);
+    _scrollToBottom();
+  }
+
+  Future<void> _retryLastMessage() async {
+    if (_isWaiting) {
+      return;
+    }
+    final lastUser = _chatMessages.lastWhere(
+      (message) => message.isUser,
+      orElse: () => const _ChatBubble(text: '', isUser: true),
+    );
+    if (lastUser.text.trim().isEmpty) {
+      return;
+    }
+    setState(() {
+      _latestAssistantText = '';
+    });
+    await _genUiController.retryLastMessage();
     _scrollToBottom();
   }
 
@@ -282,33 +306,62 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
       color: Theme.of(context).colorScheme.surfaceContainerLowest,
       child: _surfaceIds.isEmpty
           ? Center(
-              child: Text(
-                _isWaiting
-                    ? 'Generating UI...'
-                    : 'Your generated app preview will appear here.',
-                textAlign: TextAlign.center,
+              key: const ValueKey('preview_empty'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _isWaiting
+                        ? 'Generating UI...'
+                        : 'Your generated app preview will appear here.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (!_isWaiting &&
+                      _chatMessages.any((message) => message.isUser)) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      key: const ValueKey('retry_generation_button'),
+                      onPressed: _retryLastMessage,
+                      child: const Text('Retry generation'),
+                    ),
+                  ],
+                ],
               ),
             )
-          : ListView.builder(
+          : SingleChildScrollView(
+              key: const ValueKey('preview_pane'),
               padding: const EdgeInsets.all(16),
-              itemCount: _surfaceIds.length,
-              itemBuilder: (context, index) {
-                final surfaceId = _surfaceIds[index];
-                if (controller == null) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: Surface(
-                      surfaceContext: controller.contextFor(surfaceId),
-                      defaultBuilder: (context) =>
-                          const Center(child: CircularProgressIndicator()),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final surfaceId in _surfaceIds)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Card(
+                        clipBehavior: Clip.antiAlias,
+                        child: SizedBox(
+                          key: ValueKey('preview_surface_$surfaceId'),
+                          height: 480,
+                          width: double.infinity,
+                          child: ClipRect(
+                            child: controller == null
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : Surface(
+                                    surfaceContext: controller.contextFor(
+                                      surfaceId,
+                                    ),
+                                    defaultBuilder: (context) => const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              },
+                ],
+              ),
             ),
     );
   }
@@ -385,6 +438,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
+                  key: const ValueKey('send_message_button'),
                   onPressed: _isWaiting ? null : _sendMessage,
                   child: const Icon(Icons.send),
                 ),

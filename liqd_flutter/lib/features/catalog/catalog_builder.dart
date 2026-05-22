@@ -16,8 +16,9 @@ abstract final class CatalogBuilder {
       ],
       catalogId: userCatalogId,
       systemPromptFragments: [
-        'Use widgets from the Liqd catalog to build interactive apps.',
-        'Prefer composing ScaffoldScreen with VerticalLayout for full screens.',
+        'Output A2UI v0.9 JSON messages: createSurface then updateComponents.',
+        'Use catalogId "$userCatalogId". One component must have id "root".',
+        'Embed Stac JSON only inside component data fields like body or children.',
       ],
     );
   }
