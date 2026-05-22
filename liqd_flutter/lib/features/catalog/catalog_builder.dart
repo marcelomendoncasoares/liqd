@@ -7,18 +7,25 @@ import 'package:stac/stac.dart';
 import '../../config/app_config.dart';
 import 'stac_template_merger.dart';
 
-/// Builds a GenUI [Catalog] from server-side [UserWidget] entries.
+/// Builds GenUI catalogs from server-side [UserWidget] entries.
 abstract final class CatalogBuilder {
-  static Catalog fromUserWidgets(List<UserWidget> widgets) {
+  /// GenUI basic catalog (Text, Button, Column, Row, …) plus user Stac widgets.
+  static List<Catalog> buildCatalogs(List<UserWidget> widgets) {
+    return [
+      BasicCatalogItems.asCatalog(),
+      _userCatalog(widgets),
+    ];
+  }
+
+  static Catalog _userCatalog(List<UserWidget> widgets) {
     return Catalog(
       [
         for (final widget in widgets) catalogItemFromUserWidget(widget),
       ],
       catalogId: userCatalogId,
       systemPromptFragments: [
-        'Output A2UI v0.9 JSON messages: createSurface then updateComponents.',
-        'Use catalogId "$userCatalogId". One component must have id "root".',
-        'Embed Stac JSON only inside component data fields like body or children.',
+        'User Stac widgets (ScaffoldScreen, TextBlock, …): embed Stac JSON in '
+        'component data fields like body.',
       ],
     );
   }

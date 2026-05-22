@@ -46,6 +46,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
           client: widget.client,
           transport: transport,
           history: history,
+          message: message,
           model: widget.model,
         );
       },

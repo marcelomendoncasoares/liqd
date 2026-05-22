@@ -45,16 +45,34 @@ String _formatStreamError(Object error) {
   return 'Streaming connection error: $error';
 }
 
+GenUiChatMessage _toGenUiMessage(ChatMessage message) {
+  for (final part in message.parts) {
+    final interaction = part.asUiInteractionPart;
+    if (interaction != null) {
+      return GenUiChatMessage(
+        role: 'user',
+        content: interaction.interaction,
+      );
+    }
+  }
+  return GenUiChatMessage(role: 'user', content: message.text);
+}
+
 /// Streams OpenRouter responses from Serverpod into GenUI.
 Future<void> streamGenUiFromServer({
   required Client client,
   required A2uiTransportAdapter transport,
   required List<GenUiChatMessage> history,
+  required ChatMessage message,
   String? model,
 }) async {
+  final messages = [
+    ...history,
+    _toGenUiMessage(message),
+  ];
   final request = GenUiChatRequest(
     model: model ?? defaultModel,
-    messages: history,
+    messages: messages,
   );
 
   try {

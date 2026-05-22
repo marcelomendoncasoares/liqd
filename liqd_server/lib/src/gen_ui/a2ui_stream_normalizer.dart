@@ -83,12 +83,15 @@ class A2uiStreamNormalizer {
         final surfaceId = update['surfaceId'] as String?;
         if (surfaceId != null && !_createdSurfaces.contains(surfaceId)) {
           _createdSurfaces.add(surfaceId);
+          final components = update['components'];
+          final catalogId = _catalogIdForComponents(components);
           output.add(
             '```json\n${jsonEncode({
               'version': 'v0.9',
               'createSurface': {
                 'surfaceId': surfaceId,
-                'catalogId': userCatalogId,
+                'catalogId': catalogId,
+                if (catalogId == basicCatalogId) 'sendDataModel': true,
               },
             })}\n```',
           );
@@ -98,7 +101,8 @@ class A2uiStreamNormalizer {
       if (decoded.containsKey('createSurface')) {
         final create = decoded['createSurface'];
         if (create is Map<String, dynamic>) {
-          create.putIfAbsent('catalogId', () => userCatalogId);
+          create.putIfAbsent('catalogId', () => basicCatalogId);
+          create.putIfAbsent('sendDataModel', () => true);
           final surfaceId = create['surfaceId'] as String?;
           if (surfaceId != null) {
             _createdSurfaces.add(surfaceId);
@@ -113,7 +117,25 @@ class A2uiStreamNormalizer {
       return ['```json\n$rawJson\n```'];
     }
   }
+
+  String _catalogIdForComponents(Object? components) {
+    if (components is! List) {
+      return basicCatalogId;
+    }
+    for (final item in components) {
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+      final name = item['component'] as String?;
+      if (name != null && _userCatalogComponents.contains(name)) {
+        return userCatalogId;
+      }
+    }
+    return basicCatalogId;
+  }
 }
+
+const _userCatalogComponents = {'ScaffoldScreen', 'TextBlock'};
 
 _Match? _findMarkdownJson(String text) {
   final match = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```').firstMatch(text);

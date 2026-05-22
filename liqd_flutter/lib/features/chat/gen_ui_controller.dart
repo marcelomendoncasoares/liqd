@@ -3,6 +3,7 @@ import 'package:liqd_client/liqd_client.dart';
 
 import '../catalog/catalog_builder.dart';
 import '../catalog/stac_template_merger.dart';
+import 'local_action_handler.dart';
 
 /// Orchestrates GenUI conversation lifecycle with a dynamic user catalog.
 class GenUiController {
@@ -24,13 +25,15 @@ class GenUiController {
 
   final List<GenUiChatMessage> _messageHistory = [];
   Map<String, dynamic>? _savedSurfaceState;
+  int _userWidgetCount = 0;
 
-  Catalog? _catalog;
+  List<Catalog> _catalogs = [];
   SurfaceController? _surfaceController;
   A2uiTransportAdapter? _transport;
   Conversation? _conversation;
 
-  Catalog? get catalog => _catalog;
+  Catalog? get catalog =>
+      _catalogs.isNotEmpty ? _catalogs.last : null;
   SurfaceController? get surfaceController => _surfaceController;
   Conversation? get conversation => _conversation;
   List<GenUiChatMessage> get messageHistory =>
@@ -75,12 +78,13 @@ class GenUiController {
   /// Refreshes the catalog only when the server saved new widgets.
   Future<void> _reloadCatalogIfNewWidgets() async {
     final widgets = await client.widgetCatalog.listMyWidgets();
-    if (widgets.length <= (_catalog?.items.length ?? 0)) {
+    if (widgets.length <= _userWidgetCount) {
       return;
     }
 
+    _userWidgetCount = widgets.length;
     final snapshot = exportSnapshot();
-    _catalog = CatalogBuilder.fromUserWidgets(widgets);
+    _catalogs = CatalogBuilder.buildCatalogs(widgets);
     _rebuildEngine();
     _restoreSurfaces({'surfaces': snapshot.surfaces});
   }
@@ -109,13 +113,13 @@ class GenUiController {
 
   Future<void> _loadCatalog() async {
     final widgets = await client.widgetCatalog.listMyWidgets();
-    _catalog = CatalogBuilder.fromUserWidgets(widgets);
+    _userWidgetCount = widgets.length;
+    _catalogs = CatalogBuilder.buildCatalogs(widgets);
     _rebuildEngine();
   }
 
   void _rebuildEngine() {
-    final catalog = _catalog;
-    if (catalog == null) {
+    if (_catalogs.isEmpty) {
       return;
     }
 
@@ -123,7 +127,7 @@ class GenUiController {
     _transport?.dispose();
     _surfaceController?.dispose();
 
-    _surfaceController = SurfaceController(catalogs: [catalog]);
+    _surfaceController = SurfaceController(catalogs: _catalogs);
     _transport = A2uiTransportAdapter(onSend: _handleSend);
     _conversation = Conversation(
       controller: _surfaceController!,
@@ -133,7 +137,15 @@ class GenUiController {
 
   Future<void> _handleSend(ChatMessage message) async {
     final transport = _transport;
-    if (transport == null) {
+    final controller = _surfaceController;
+    if (transport == null || controller == null) {
+      return;
+    }
+
+    if (LocalActionHandler.tryHandle(
+      controller: controller,
+      message: message,
+    )) {
       return;
     }
 
