@@ -1,5 +1,5 @@
 /// Default OpenRouter model slug used when none is selected.
-const defaultModel = 'deepseek/deepseek-v4-pro';
+const defaultModel = 'google/gemini-3.1-flash-lite';
 
 /// GenUI catalog identifier for user widgets.
 const userCatalogId = 'com.liqd.user_catalog';
@@ -9,6 +9,7 @@ const basicCatalogId = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 
 /// Available models for the settings picker.
 const availableModels = [
+  'google/gemini-3.1-flash-lite',
   'deepseek/deepseek-v4-pro',
   'nvidia/nemotron-3-nano-30b-a3b:free',
 ];

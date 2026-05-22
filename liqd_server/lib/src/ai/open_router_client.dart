@@ -33,6 +33,7 @@ class OpenRouterClient {
         'messages': messages,
         'temperature': ?temperature,
         'max_tokens': ?maxTokens,
+        'service_tier': 'flex',
       }),
     );
 
@@ -110,11 +111,11 @@ class OpenRouterClient {
   }
 
   Map<String, String> _headers() => {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-        'HTTP-Referer': ?siteUrl,
-        'X-OpenRouter-Title': ?appName,
-      };
+    'Authorization': 'Bearer $apiKey',
+    'Content-Type': 'application/json',
+    'HTTP-Referer': ?siteUrl,
+    'X-OpenRouter-Title': ?appName,
+  };
 
   void close() => _http.close();
 }
