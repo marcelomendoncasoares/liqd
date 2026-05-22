@@ -4,6 +4,7 @@ import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
 import '../ai/open_router_client.dart';
+import '../ai/open_router_config.dart';
 import '../widgets/stac_validator.dart';
 import '../widgets/widget_catalog_endpoint.dart';
 
@@ -42,7 +43,7 @@ class GenUiStreamEndpoint extends Endpoint {
   @override
   bool get requireLogin => true;
 
-  static const defaultModel = 'anthropic/claude-sonnet-4';
+  static const defaultModel = 'deepseek/deepseek-v4-flash:free';
 
   Stream<String> chatStream(Session session, GenUiChatRequest request) async* {
     final authUserId = _requireAuthUserId(session);
@@ -51,9 +52,10 @@ class GenUiStreamEndpoint extends Endpoint {
     final widgets = await catalogEndpoint.listMyWidgets(session);
     final systemPrompt = GenUiPromptService.buildSystemPrompt(widgets);
 
-    final apiKey = session.passwords['openRouterApiKey'];
-    if (apiKey == null || apiKey.isEmpty) {
-      throw StateError('OpenRouter API key is not configured.');
+    final apiKey = OpenRouterConfig.resolveApiKey(session);
+    if (apiKey == null) {
+      session.log(OpenRouterConfig.missingKeyMessage(), level: LogLevel.error);
+      throw GenUiStreamException(message: OpenRouterConfig.missingKeyMessage());
     }
 
     final client = OpenRouterClient(
@@ -82,6 +84,13 @@ class GenUiStreamEndpoint extends Endpoint {
       }
 
       await _processNewWidgetBlocks(session, authUserId, buffer.toString());
+    } on OpenRouterException catch (error) {
+      session.log('OpenRouter error: $error', level: LogLevel.error);
+      throw GenUiStreamException(
+        message:
+            'OpenRouter request failed (${error.statusCode}): '
+            '${_truncate(error.body, 300)}',
+      );
     } finally {
       client.close();
     }
@@ -164,5 +173,12 @@ class GenUiStreamEndpoint extends Endpoint {
       throw ArgumentError('Authentication required.');
     }
     return UuidValue.fromString(userIdentifier);
+  }
+
+  static String _truncate(String value, int maxLength) {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return '${value.substring(0, maxLength)}...';
   }
 }

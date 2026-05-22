@@ -125,8 +125,12 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
         if (!mounted) {
           return;
         }
+        final message = error.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $error')),
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 8),
+          ),
         );
       default:
         break;
