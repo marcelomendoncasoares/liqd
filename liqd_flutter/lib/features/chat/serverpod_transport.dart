@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:genui/genui.dart';
+import 'package:liqd_a2ui/liqd_a2ui.dart';
 import 'package:liqd_client/liqd_client.dart';
 
 import '../../config/app_config.dart';
@@ -76,6 +77,7 @@ Future<String> streamGenUiFromServer({
   required GenerationCancelToken cancelToken,
   required void Function(StreamSubscription<String> subscription)
   onSubscription,
+  required String catalogManifestJson,
   String? model,
   String? existingSurfacesJson,
 }) async {
@@ -84,6 +86,7 @@ Future<String> streamGenUiFromServer({
     model: model ?? defaultModel,
     messages: messages,
     existingSurfacesJson: existingSurfacesJson,
+    catalogManifestJson: catalogManifestJson,
   );
 
   GenUiStreamLogger.logRequest(
@@ -139,7 +142,7 @@ Future<String> streamGenUiFromServer({
         rawResponse.write(chunk);
         GenUiStreamLogger.logRawChunk(chunk);
         try {
-          transport.addChunk(chunk);
+          transport.addChunk(NdjsonAdapter.ndjsonToGenuiChunk(chunk));
         } on StateError {
           // Transport input closed by flush(), dispose(), or hot reload.
           streamClosed = true;

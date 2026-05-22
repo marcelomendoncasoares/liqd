@@ -1,22 +1,22 @@
 import 'dart:convert';
 
 import '../generated/protocol.dart';
+import 'package:liqd_a2ui/liqd_a2ui.dart';
 import 'package:serverpod/serverpod.dart';
 
 import '../ai/open_router_client.dart';
 import '../ai/open_router_config.dart';
 import '../widgets/stac_validator.dart';
 import '../widgets/widget_catalog_endpoint.dart';
-import 'a2ui_stream_normalizer.dart';
 import 'gen_ui_dev_logger.dart';
 import 'gen_ui_dev_mock.dart';
-import 'gen_ui_prompt_service.dart';
 
 class GenUiStreamEndpoint extends Endpoint {
   @override
   bool get requireLogin => true;
 
   static const defaultModel = 'deepseek/deepseek-v4-flash:free';
+  static const _maxValidationRetries = 2;
 
   Stream<String> chatStream(Session session, GenUiChatRequest request) async* {
     try {
@@ -44,20 +44,11 @@ class GenUiStreamEndpoint extends Endpoint {
     GenUiChatRequest request,
   ) async* {
     final authUserId = _requireAuthUserId(session);
-
-    final catalogEndpoint = WidgetCatalogEndpoint();
-    final widgets = await catalogEndpoint.listMyWidgets(session);
-    final existingSurfaceIds = GenUiPromptService.parseExistingSurfaceIds(
-      request.existingSurfacesJson,
-    );
-    final existingSurfaces = _parseExistingSurfaces(
+    final manifest = _requireCatalogManifest(request);
+    final existingSurfaceIds = GenUiChatAssembler.parseExistingSurfaceIds(
       request.existingSurfacesJson,
     );
     final isEdit = existingSurfaceIds.isNotEmpty;
-    final systemPrompt = GenUiPromptService.buildSystemPrompt(
-      widgets,
-      isEdit: isEdit,
-    );
 
     final apiKey = OpenRouterConfig.resolveApiKey(session);
     if (apiKey == null) {
@@ -73,7 +64,6 @@ class GenUiStreamEndpoint extends Endpoint {
       throw GenUiStreamException(message: OpenRouterConfig.missingKeyMessage());
     }
 
-    // UI error feedback loops back from the client; don't burn OpenRouter quota.
     if (_isClientErrorFeedback(request)) {
       session.log(
         'Skipping OpenRouter for client error feedback message.',
@@ -86,23 +76,18 @@ class GenUiStreamEndpoint extends Endpoint {
     }
 
     final model = request.model ?? defaultModel;
-    final buffer = StringBuffer();
-    final normalizer = A2uiStreamNormalizer(
-      existingSurfaceIds: existingSurfaceIds,
-      existingSurfaces: existingSurfaces,
-      userWidgetNames: widgets.map((widget) => widget.name),
-    );
-
     final existingSurfacesMessage =
-        GenUiPromptService.buildExistingSurfacesMessage(
+        GenUiChatAssembler.buildExistingSurfacesMessage(
           request.existingSurfacesJson,
         );
 
-    var messages = GenUiPromptService.buildChatMessages(
-      request: request,
+    var messages = GenUiChatAssembler.buildChatMessages(
+      manifest: manifest,
       isEdit: isEdit,
       existingSurfacesMessage: existingSurfacesMessage,
-      systemPrompt: systemPrompt,
+      userMessages: request.messages
+          .map((message) => {'role': message.role, 'content': message.content})
+          .toList(),
     );
 
     final client = OpenRouterClient(
@@ -112,63 +97,100 @@ class GenUiStreamEndpoint extends Endpoint {
     );
 
     try {
-      if (isEdit) {
-        var fullResponse = await _collectOpenRouterResponse(
-          client: client,
-          model: model,
-          messages: messages,
-        );
+      var attempt = 0;
+      var validatedMessageCount = 0;
+      final responseBuffer = StringBuffer();
 
-        if (!GenUiPromptService.responseContainsA2ui(fullResponse)) {
-          session.log(
-            'Follow-up response lacked A2UI; retrying with correction prompt.',
-            level: LogLevel.info,
-          );
-          messages = [
-            ...messages,
-            {'role': 'assistant', 'content': fullResponse},
-            {
-              'role': 'user',
-              'content': GenUiPromptService.a2uiCorrectionMessage(),
-            },
-          ];
-          fullResponse = await _collectOpenRouterResponse(
-            client: client,
-            model: model,
-            messages: messages,
-          );
-        }
+      while (attempt <= _maxValidationRetries) {
+        final extractor = A2uiExtractor();
+        final validator = A2uiValidator(manifest)
+          ..seedExistingSurfaces(existingSurfaceIds);
+        final validationErrors = <String>[];
+        validatedMessageCount = 0;
+        responseBuffer.clear();
 
-        buffer.write(fullResponse);
-        for (final normalized in normalizer.process(fullResponse)) {
-          yield normalized;
-        }
-        for (final normalized in normalizer.flush()) {
-          yield normalized;
-        }
-      } else {
         await for (final chunk in client.streamChat(
           model: model,
           messages: messages,
         )) {
-          buffer.write(chunk);
-          for (final normalized in normalizer.process(chunk)) {
-            yield normalized;
+          responseBuffer.write(chunk);
+          for (final rawJson in extractor.process(chunk)) {
+            final result = await validateA2uiJson(validator, rawJson);
+            if (result.skipped) {
+              continue;
+            }
+            if (result.isValid && result.message != null) {
+              validatedMessageCount++;
+              yield '${NdjsonAdapter.toNdjsonLine(result.message!)}\n';
+            } else {
+              validationErrors.addAll(result.errors);
+            }
           }
         }
-        for (final normalized in normalizer.flush()) {
-          yield normalized;
-        }
-      }
 
-      final fullResponse = buffer.toString();
-      _logModelResponse(
-        session,
-        fullResponse: fullResponse,
-        isEdit: isEdit,
-        model: model,
-      );
-      await _processNewWidgetBlocks(session, authUserId, fullResponse);
+        for (final rawJson in extractor.flush()) {
+          final result = await validateA2uiJson(validator, rawJson);
+          if (result.skipped) {
+            continue;
+          }
+          if (result.isValid && result.message != null) {
+            validatedMessageCount++;
+            yield '${NdjsonAdapter.toNdjsonLine(result.message!)}\n';
+          } else {
+            validationErrors.addAll(result.errors);
+          }
+        }
+
+        final fullResponse = responseBuffer.toString();
+        final hasA2ui = GenUiChatAssembler.responseContainsA2ui(fullResponse);
+
+        if (validatedMessageCount > 0) {
+          _logModelResponse(
+            session,
+            fullResponse: fullResponse,
+            isEdit: isEdit,
+            model: model,
+            validatedMessageCount: validatedMessageCount,
+            validationErrors: validationErrors,
+          );
+          await _processNewWidgetBlocks(session, authUserId, fullResponse);
+          return;
+        }
+
+        if (attempt == _maxValidationRetries) {
+          _logModelResponse(
+            session,
+            fullResponse: fullResponse,
+            isEdit: isEdit,
+            model: model,
+            validatedMessageCount: validatedMessageCount,
+            validationErrors: validationErrors,
+          );
+          if (validatedMessageCount == 0 && !hasA2ui) {
+            session.log(
+              'Model response has no valid A2UI messages.',
+              level: LogLevel.warning,
+            );
+          }
+          return;
+        }
+
+        final retryPrompt = validationErrors.isNotEmpty
+            ? GenUiChatAssembler.validationRetryMessage(validationErrors)
+            : GenUiChatAssembler.a2uiCorrectionMessage();
+
+        session.log(
+          'GenUI validation failed (attempt ${attempt + 1}); retrying.',
+          level: LogLevel.info,
+        );
+
+        messages = [
+          ...messages,
+          {'role': 'assistant', 'content': fullResponse},
+          {'role': 'user', 'content': retryPrompt},
+        ];
+        attempt++;
+      }
     } on OpenRouterException catch (error) {
       if (session.serverpod.runMode == ServerpodRunMode.development) {
         session.log(
@@ -190,30 +212,26 @@ class GenUiStreamEndpoint extends Endpoint {
   }
 
   Stream<String> _streamDevMock() async* {
-    final normalizer = A2uiStreamNormalizer();
-    await for (final chunk in GenUiDevMock.streamCalculator()) {
-      for (final normalized in normalizer.process(chunk)) {
-        yield normalized;
-      }
-    }
-    for (final normalized in normalizer.flush()) {
-      yield normalized;
+    await for (final line in GenUiDevMock.streamCalculatorNdjson()) {
+      yield line;
     }
   }
 
-  Future<String> _collectOpenRouterResponse({
-    required OpenRouterClient client,
-    required String model,
-    required List<Map<String, dynamic>> messages,
-  }) async {
-    final buffer = StringBuffer();
-    await for (final chunk in client.streamChat(
-      model: model,
-      messages: messages,
-    )) {
-      buffer.write(chunk);
+  CatalogManifest _requireCatalogManifest(GenUiChatRequest request) {
+    final raw = request.catalogManifestJson;
+    if (raw == null || raw.trim().isEmpty) {
+      throw GenUiStreamException(
+        message: 'catalogManifestJson is required for GenUI requests.',
+      );
     }
-    return buffer.toString();
+
+    try {
+      return CatalogManifest.fromJsonString(raw);
+    } on FormatException catch (error) {
+      throw GenUiStreamException(
+        message: 'Invalid catalogManifestJson: $error',
+      );
+    }
   }
 
   Future<UserWidget?> generateWidget(
@@ -302,15 +320,17 @@ class GenUiStreamEndpoint extends Endpoint {
     required String fullResponse,
     required bool isEdit,
     required String model,
+    required int validatedMessageCount,
+    List<String> validationErrors = const [],
   }) {
     if (session.serverpod.runMode != ServerpodRunMode.development) {
       return;
     }
 
-    final containsA2ui = GenUiPromptService.responseContainsA2ui(fullResponse);
     session.log(
       'GenUI model response model=$model isEdit=$isEdit '
-      '(${fullResponse.length} chars, containsA2ui=$containsA2ui)',
+      '(${fullResponse.length} chars, validatedMessages=$validatedMessageCount, '
+      'validationErrors=${validationErrors.length})',
       level: LogLevel.info,
     );
     GenUiDevLogger.logLongText(
@@ -319,10 +339,11 @@ class GenUiStreamEndpoint extends Endpoint {
       header: 'Model response body:',
     );
 
-    if (!containsA2ui) {
-      session.log(
-        'Model response has no A2UI messages — preview will not change.',
-        level: LogLevel.warning,
+    if (validationErrors.isNotEmpty) {
+      GenUiDevLogger.logLongText(
+        session,
+        validationErrors.join('\n'),
+        header: 'Validation errors:',
       );
     }
   }
@@ -332,29 +353,6 @@ class GenUiStreamEndpoint extends Endpoint {
       return value;
     }
     return '${value.substring(0, maxLength)}...';
-  }
-
-  Map<String, Map<String, dynamic>> _parseExistingSurfaces(
-    String? existingSurfacesJson,
-  ) {
-    if (existingSurfacesJson == null || existingSurfacesJson.trim().isEmpty) {
-      return const {};
-    }
-    try {
-      final decoded = jsonDecode(existingSurfacesJson) as Map<String, dynamic>;
-      final surfaces = decoded['surfaces'];
-      if (surfaces is! Map) {
-        return const {};
-      }
-      return surfaces.map(
-        (key, value) => MapEntry(
-          key.toString(),
-          Map<String, dynamic>.from(value as Map),
-        ),
-      );
-    } on FormatException {
-      return const {};
-    }
   }
 
   bool _isClientErrorFeedback(GenUiChatRequest request) {

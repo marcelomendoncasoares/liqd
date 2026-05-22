@@ -4,3 +4,4 @@ fields:
   messages: List<GenUiChatMessage>
   conversationId: String?
   existingSurfacesJson: String?
+  catalogManifestJson: String?

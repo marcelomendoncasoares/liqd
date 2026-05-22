@@ -1,20 +1,20 @@
 import 'dart:async';
 
 import 'package:genui/genui.dart';
+import 'package:liqd_a2ui/liqd_a2ui.dart';
 import 'package:liqd_client/liqd_client.dart';
 
 import '../catalog/catalog_builder.dart';
+import '../catalog/catalog_manifest_builder.dart';
 import '../catalog/stac_template_merger.dart';
-import 'component_tree_merger.dart';
 import 'gen_ui_stream_logger.dart';
 import 'gen_ui_update_outcome.dart';
 import 'generation_cancel_token.dart';
-import 'patch_merging_transport.dart';
 import 'serverpod_transport.dart';
 import 'surface_context_builder.dart';
 import 'ui_interaction.dart';
 
-/// Orchestrates GenUI conversation lifecycle with a dynamic user catalog.
+/// Orchestrates GenUI conversation lifecycle with the basic A2UI catalog.
 class GenUiController {
   GenUiController({
     required this.client,
@@ -31,16 +31,15 @@ class GenUiController {
 
   final List<GenUiChatMessage> _messageHistory = [];
   Map<String, dynamic>? _savedSurfaceState;
-  int _userWidgetCount = 0;
 
   List<Catalog> _catalogs = [];
+  CatalogManifest? _catalogManifest;
   SurfaceController? _surfaceController;
   A2uiTransportAdapter? _transport;
   Conversation? _conversation;
   bool _streamInFlight = false;
   GenerationCancelToken? _cancelToken;
   StreamSubscription<String>? _streamSubscription;
-  StreamSubscription<SurfaceUpdate>? _surfaceUpdatesSubscription;
 
   bool get isGenerating => _streamInFlight;
 
@@ -71,10 +70,9 @@ class GenUiController {
 
     _messageHistory.add(GenUiChatMessage(role: 'user', content: trimmed));
     await _conversation!.sendRequest(ChatMessage.user(trimmed));
-    await _reloadCatalogIfNewWidgets();
+    await _trackNewWidgets();
   }
 
-  /// Cancels the active server generation stream, if any.
   Future<void> stopGeneration() async {
     if (!_streamInFlight) {
       return;
@@ -91,7 +89,6 @@ class GenUiController {
     );
   }
 
-  /// Re-sends the last user message without duplicating history.
   Future<void> retryLastMessage() async {
     if (_conversation == null || _messageHistory.isEmpty) {
       return;
@@ -101,21 +98,11 @@ class GenUiController {
       return;
     }
     await _conversation!.sendRequest(ChatMessage.user(last.content));
-    await _reloadCatalogIfNewWidgets();
+    await _trackNewWidgets();
   }
 
-  /// Refreshes the catalog only when the server saved new widgets.
-  Future<void> _reloadCatalogIfNewWidgets() async {
-    final widgets = await client.widgetCatalog.listMyWidgets();
-    if (widgets.length <= _userWidgetCount) {
-      return;
-    }
-
-    _userWidgetCount = widgets.length;
-    final snapshot = exportSnapshot();
-    _catalogs = CatalogBuilder.buildCatalogs(widgets);
-    _rebuildEngine();
-    _restoreSurfaces({'surfaces': snapshot.surfaces});
+  Future<void> _trackNewWidgets() async {
+    await client.widgetCatalog.listMyWidgets();
   }
 
   SurfaceControllerSnapshot exportSnapshot() {
@@ -150,64 +137,40 @@ class GenUiController {
   }
 
   Future<void> _loadCatalog() async {
-    final widgets = await client.widgetCatalog.listMyWidgets();
-    _userWidgetCount = widgets.length;
-    _catalogs = CatalogBuilder.buildCatalogs(widgets);
+    await client.widgetCatalog.listMyWidgets();
+    _catalogs = CatalogBuilder.buildCatalogs(const []);
+    _catalogManifest = CatalogManifestBuilder.buildBasicManifest();
     _rebuildEngine();
   }
 
   void _rebuildEngine() {
-    if (_catalogs.isEmpty) {
+    if (_catalogs.isEmpty || _catalogManifest == null) {
       return;
     }
 
     _conversation?.dispose();
     _transport?.dispose();
     _surfaceController?.dispose();
-    _surfaceUpdatesSubscription?.cancel();
-    _surfaceUpdatesSubscription = null;
 
     _surfaceController = SurfaceController(catalogs: _catalogs);
-    _surfaceUpdatesSubscription = _surfaceController!.surfaceUpdates.listen(
-      _onSurfaceUpdate,
-    );
     _transport = A2uiTransportAdapter(onSend: _handleSend);
-    final mergingTransport = PatchMergingTransport(
-      inner: _transport!,
-      controller: _surfaceController!,
-    );
     _conversation = Conversation(
       controller: _surfaceController!,
-      transport: mergingTransport,
+      transport: _transport!,
     );
-  }
-
-  void _onSurfaceUpdate(SurfaceUpdate update) {
-    if (update is! ComponentsUpdated) {
-      return;
-    }
-    final controller = _surfaceController;
-    if (controller == null) {
-      return;
-    }
-    ComponentTreeMerger.linkOrphans(controller, update.surfaceId);
   }
 
   Future<void> _handleSend(ChatMessage message) async {
     final transport = _transport;
     final controller = _surfaceController;
-    if (transport == null || controller == null) {
+    final manifest = _catalogManifest;
+    if (transport == null || controller == null || manifest == null) {
       return;
     }
 
-    // GenUI forwards validation/runtime errors to onSubmit, which would
-    // otherwise trigger a new OpenRouter call per error (rate-limit storm).
-    if (UiInteraction.isErrorFeedback(message)) {
+    if (UiInteraction.isErrorFeedback(message) ||
+        UiInteraction.isUiInteraction(message)) {
       _emitValidationError(message);
-      return;
-    }
-
-    if (UiInteraction.isUiInteraction(message)) {
       return;
     }
 
@@ -244,6 +207,7 @@ class GenUiController {
         message: message,
         model: model,
         cancelToken: cancelToken,
+        catalogManifestJson: manifest.toJsonString(),
         existingSurfacesJson: buildExistingSurfacesJson(controller),
         onSubscription: (subscription) {
           _streamSubscription = subscription;
@@ -366,7 +330,6 @@ class GenUiController {
   void dispose() {
     _cancelToken?.cancel();
     _streamSubscription?.cancel();
-    _surfaceUpdatesSubscription?.cancel();
     _conversation?.dispose();
     _transport?.dispose();
     _surfaceController?.dispose();

@@ -5,6 +5,7 @@ environment:
   sdk: '^3.10.3'
 
 workspace:
+  - liqd_a2ui
   - liqd_client
   - liqd_server
   - liqd_flutter

@@ -1,4 +1,5 @@
 import 'package:liqd_client/liqd_client.dart';
+import 'package:liqd_flutter/features/catalog/catalog_manifest_builder.dart';
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart';
 
 class _MemoryStorage implements KeyValueStorage {
@@ -44,6 +45,8 @@ Future<void> main() async {
   final stream = client.genUiStream.chatStream(
     GenUiChatRequest(
       model: 'deepseek/deepseek-v4-flash:free',
+      catalogManifestJson: CatalogManifestBuilder.buildBasicManifest()
+          .toJsonString(),
       messages: [
         GenUiChatMessage(role: 'user', content: 'Say hi'),
       ],
