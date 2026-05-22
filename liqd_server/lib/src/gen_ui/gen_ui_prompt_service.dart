@@ -22,11 +22,11 @@ abstract final class GenUiPromptService {
       },
       {
         'role': 'user',
-        'content': 'Build a calculator with number buttons and a display.',
+        'content': 'Build a todo list with a text field and an Add button.',
       },
       {
         'role': 'assistant',
-        'content': _calculatorFewShot,
+        'content': _todoFewShot,
       },
     ];
 
@@ -34,11 +34,11 @@ abstract final class GenUiPromptService {
       messages.addAll([
         {
           'role': 'user',
-          'content': 'Add a clear button to the calculator.',
+          'content': 'Add a Clear button that resets the input field.',
         },
         {
           'role': 'assistant',
-          'content': _calculatorEditFewShot,
+          'content': _todoEditFewShot,
         },
       ]);
     }
@@ -49,32 +49,35 @@ abstract final class GenUiPromptService {
   static const _counterFewShot =
       '''
 ```json
-{"version":"v0.9","createSurface":{"surfaceId":"counter","catalogId":"$basicCatalogId","sendDataModel":true}}
+{"version":"v0.9","createSurface":{"surfaceId":"main","catalogId":"$basicCatalogId","sendDataModel":true}}
 ```
 ```json
-{"version":"v0.9","updateDataModel":{"surfaceId":"counter","path":"/count","value":0}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"main","path":"/count","value":0}}
 ```
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"counter","components":[{"id":"root","component":"Column","justify":"center","align":"center","children":["display","incrementBtn"]},{"id":"display","component":"Text","text":{"path":"/count"},"variant":"h1"},{"id":"incrementBtn","component":"Button","child":"incrementLabel","action":{"event":{"name":"increment"}}},{"id":"incrementLabel","component":"Text","text":"+1"}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","justify":"center","align":"center","children":["display","incrementBtn"]},{"id":"display","component":"Text","text":{"path":"/count"},"variant":"h1"},{"id":"incrementBtn","component":"Button","child":"incrementLabel","action":{"functionCall":{"call":"incrementPath","args":{"path":"/count"},"returnType":"void"}}},{"id":"incrementLabel","component":"Text","text":"+1"}]}}
 ```
 ''';
 
-  static const _calculatorFewShot =
+  static const _todoFewShot =
       '''
 ```json
-{"version":"v0.9","createSurface":{"surfaceId":"calculator","catalogId":"$basicCatalogId","sendDataModel":true}}
+{"version":"v0.9","createSurface":{"surfaceId":"main","catalogId":"$basicCatalogId","sendDataModel":true}}
 ```
 ```json
-{"version":"v0.9","updateDataModel":{"surfaceId":"calculator","path":"/display","value":"0"}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"main","path":"/newTodo","value":""}}
 ```
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"calculator","components":[{"id":"root","component":"Column","align":"stretch","children":["display","row1","row2"]},{"id":"display","component":"Text","text":{"path":"/display"},"variant":"h2"},{"id":"row1","component":"Row","children":["btn7","btn8","btn9"]},{"id":"btn7","component":"Button","child":"btn7Label","action":{"event":{"name":"digit","context":{"digit":"7"}}}},{"id":"btn7Label","component":"Text","text":"7"},{"id":"btn8","component":"Button","child":"btn8Label","action":{"event":{"name":"digit","context":{"digit":"8"}}}},{"id":"btn8Label","component":"Text","text":"8"},{"id":"btn9","component":"Button","child":"btn9Label","action":{"event":{"name":"digit","context":{"digit":"9"}}}},{"id":"btn9Label","component":"Text","text":"9"},{"id":"row2","component":"Row","children":["btn4","btn5","btn6"]},{"id":"btn4","component":"Button","child":"btn4Label","action":{"event":{"name":"digit","context":{"digit":"4"}}}},{"id":"btn4Label","component":"Text","text":"4"},{"id":"btn5","component":"Button","child":"btn5Label","action":{"event":{"name":"digit","context":{"digit":"5"}}}},{"id":"btn5Label","component":"Text","text":"5"},{"id":"btn6","component":"Button","child":"btn6Label","action":{"event":{"name":"digit","context":{"digit":"6"}}}},{"id":"btn6Label","component":"Text","text":"6"}]}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"main","path":"/todos","value":[]}}
+```
+```json
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["inputRow"]},{"id":"inputRow","component":"Row","children":["newTodoField","addBtn"]},{"id":"newTodoField","component":"TextField","label":"New todo","value":{"path":"/newTodo"}},{"id":"addBtn","component":"Button","child":"addLabel","action":{"functionCall":{"call":"pushToPath","args":{"path":"/todos","value":{"text":{"path":"/newTodo"},"done":false}},"returnType":"void"}}},{"id":"addLabel","component":"Text","text":"Add"}]}}
 ```
 ''';
 
-  static const _calculatorEditFewShot = '''
+  static const _todoEditFewShot = '''
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"calculator","components":[{"id":"root","component":"Column","align":"stretch","children":["display","row1","row2","rowClear"]},{"id":"rowClear","component":"Row","children":["btnClear"]},{"id":"btnClear","component":"Button","child":"btnClearLabel","action":{"event":{"name":"clear"}}},{"id":"btnClearLabel","component":"Text","text":"C"}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["inputRow","clearBtn"]},{"id":"clearBtn","component":"Button","child":"clearLabel","action":{"functionCall":{"call":"setPath","args":{"path":"/newTodo","value":""},"returnType":"void"}}},{"id":"clearLabel","component":"Text","text":"Clear"}]}}
 ```
 ''';
 
@@ -103,30 +106,39 @@ Use catalogId "$basicCatalogId" with sendDataModel: true.
 
 Emit blocks in order:
 1. createSurface — surfaceId, catalogId, sendDataModel: true
-2. updateDataModel — initial state (e.g. path "/count", value 0)
+2. updateDataModel — initial ephemeral state (paths like /count, /todos, /display)
 3. updateComponents — flat components array; one must have id "root"
 
 Native component names (case-sensitive): Column, Row, Text, Button, TextField, CheckBox, Card, List.
 
 Rules:
 - Text "text" may be a literal string OR a binding like {"path":"/count"}.
-- Every Button MUST include "action": {"event":{"name":"<actionName>"}}.
+- TextField "value" binds two-way to a data model path.
+- Every Button MUST use local interactivity via functionCall (NOT event):
+  "action": {"functionCall": {"call": "<fn>", "args": {...}, "returnType": "void"}}
+- NEVER use action.event for buttons — events are for server-side flows only.
 - Every Button MUST set "child" to a component id AND include a matching Text
-  component in the same updateComponents array (e.g. btn7 + btn7Label).
+  component in the same updateComponents array.
 - Every id listed in Column/Row "children" or Button "child" MUST appear as
   its own component entry in the same updateComponents array.
-- Column/Row "children" is an array of component id strings.
-- Do NOT put Stac JSON (type: column, elevatedButton) inside native components.
+
+$_localStateFunctionsPrompt
 
 Counter pattern:
 ```json
-{"version":"v0.9","createSurface":{"surfaceId":"counter","catalogId":"$basicCatalogId","sendDataModel":true}}
+{"version":"v0.9","createSurface":{"surfaceId":"main","catalogId":"$basicCatalogId","sendDataModel":true}}
 ```
 ```json
-{"version":"v0.9","updateDataModel":{"surfaceId":"counter","path":"/count","value":0}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"main","path":"/count","value":0}}
 ```
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"counter","components":[{"id":"root","component":"Column","children":["display","incrementBtn"]},{"id":"display","component":"Text","text":{"path":"/count"},"variant":"h1"},{"id":"incrementBtn","component":"Button","child":"incrementLabel","action":{"event":{"name":"increment"}}},{"id":"incrementLabel","component":"Text","text":"+1"}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"Column","children":["display","incrementBtn"]},{"id":"display","component":"Text","text":{"path":"/count"},"variant":"h1"},{"id":"incrementBtn","component":"Button","child":"incrementLabel","action":{"functionCall":{"call":"incrementPath","args":{"path":"/count"},"returnType":"void"}}},{"id":"incrementLabel","component":"Text","text":"+1"}]}}
+```
+
+Numeric entry (e.g. calculator display at /display): use appendToPath for digits
+and operators, setPath to clear, evaluateMathPath for equals:
+```json
+"action":{"functionCall":{"call":"appendToPath","args":{"path":"/display","value":"7"},"returnType":"void"}}
 ```
 
 ## Layout-only / custom Stac widgets
@@ -147,6 +159,16 @@ ${catalogEntries.map((e) => '- ${e['name']}: ${e['description']}').join('\n')}
 ''';
   }
 
+  static const _localStateFunctionsPrompt = '''
+Local client functions (mutate ephemeral data model — no server round-trip):
+- setPath — {"path":"/key","value":<any>}
+- incrementPath — {"path":"/count","by":1} (by optional)
+- appendToPath — {"path":"/display","value":"7"} (string append or array push)
+- togglePath — {"path":"/todos/0/done"}
+- pushToPath — {"path":"/todos","value":{...}}
+- evaluateMathPath — {"path":"/display"} for = on arithmetic strings
+''';
+
   static const _editModeInstructions = '''
 ## Editing an existing app (follow-up requests)
 
@@ -157,6 +179,7 @@ The user already has a live app. You MUST incrementally modify it:
 - Only include components you add or change; unchanged components can be omitted.
 - When adding buttons or rows, update the parent component's "children" array so new
   components are reachable from "root" (orphan components will not appear in the UI).
+- Keep using functionCall for all button actions (never event).
 - Never rebuild the entire app from scratch unless the user asks to start over.
 - NEVER reply with conversational text, explanations, markdown prose, or summaries.
   The user cannot see chat replies — only A2UI JSON blocks update the app preview.

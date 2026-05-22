@@ -24,24 +24,24 @@ void main() {
       expect(prompt, contains(userCatalogId));
       expect(prompt, contains('"id":"root"'));
       expect(prompt, contains('TextBlock'));
-      expect(prompt, contains('Button'));
-      expect(prompt, contains('sendDataModel'));
+      expect(prompt, contains('functionCall'));
+      expect(prompt, contains('incrementPath'));
     });
 
     test('fewShotMessages provides valid counter example exchange', () {
       final messages = GenUiPromptService.fewShotMessages();
       expect(messages, hasLength(4));
-      expect(messages.last['content'], contains('createSurface'));
-      expect(messages.last['content'], contains('updateDataModel'));
-      expect(messages.last['content'], contains('updateComponents'));
-      expect(messages.last['content'], contains('digit'));
+      expect(messages[1]['content'], contains('incrementPath'));
+      expect(messages.last['content'], contains('pushToPath'));
+      expect(messages.last['content'], contains('functionCall'));
     });
 
     test('includes edit instructions when isEdit is true', () {
       final prompt = GenUiPromptService.buildSystemPrompt([], isEdit: true);
 
       expect(prompt, contains('incrementally modify'));
-      expect(prompt, contains('Do NOT emit createSurface'));
+      expect(prompt, contains('functionCall'));
+      expect(prompt, contains('never event'));
     });
 
     test('parseExistingSurfaceIds reads surface keys from JSON', () {
@@ -56,9 +56,9 @@ void main() {
       final messages = GenUiPromptService.fewShotMessages(includeEdit: true);
 
       expect(messages, hasLength(6));
-      expect(messages[4]['content'], contains('clear button'));
-      expect(messages.last['content'], contains('btnClear'));
-      expect(messages.last['content'], contains('"root"'));
+      expect(messages[4]['content'], contains('Clear'));
+      expect(messages.last['content'], contains('setPath'));
+      expect(messages.last['content'], contains('clearBtn'));
     });
 
     test('responseContainsA2ui detects A2UI message keys', () {

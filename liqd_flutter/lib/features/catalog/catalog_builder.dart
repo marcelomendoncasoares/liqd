@@ -3,6 +3,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:liqd_client/liqd_client.dart';
 
 import '../../config/app_config.dart';
+import 'local_state_functions.dart';
 import 'reactive_stac_host.dart';
 import 'stac_template_merger.dart';
 
@@ -10,8 +11,15 @@ import 'stac_template_merger.dart';
 abstract final class CatalogBuilder {
   /// GenUI basic catalog (Text, Button, Column, Row, …) plus user Stac widgets.
   static List<Catalog> buildCatalogs(List<UserWidget> widgets) {
+    final basic = BasicCatalogItems.asCatalog().copyWith(
+      newFunctions: LocalStateFunctions.all,
+      systemPromptFragments: [
+        ...BasicCatalogItems.asCatalog().systemPromptFragments,
+        LocalStateFunctions.systemPromptFragment,
+      ],
+    );
     return [
-      BasicCatalogItems.asCatalog(),
+      basic,
       _userCatalog(widgets),
     ];
   }

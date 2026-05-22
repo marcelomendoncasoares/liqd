@@ -7,9 +7,9 @@ import '../catalog/catalog_builder.dart';
 import '../catalog/stac_template_merger.dart';
 import 'component_tree_merger.dart';
 import 'generation_cancel_token.dart';
-import 'local_action_handler.dart';
 import 'serverpod_transport.dart';
 import 'surface_context_builder.dart';
+import 'ui_interaction.dart';
 
 /// Orchestrates GenUI conversation lifecycle with a dynamic user catalog.
 class GenUiController {
@@ -174,30 +174,11 @@ class GenUiController {
 
     // GenUI forwards validation/runtime errors to onSubmit, which would
     // otherwise trigger a new OpenRouter call per error (rate-limit storm).
-    if (LocalActionHandler.isErrorFeedback(message)) {
+    if (UiInteraction.isErrorFeedback(message)) {
       return;
     }
 
-    if (LocalActionHandler.isUiInteraction(message)) {
-      if (LocalActionHandler.tryHandle(
-        controller: controller,
-        message: message,
-      )) {
-        return;
-      }
-      if (LocalActionHandler.shouldConsumeWithoutServer(
-        controller: controller,
-        message: message,
-      )) {
-        return;
-      }
-      if (_streamInFlight) {
-        return;
-      }
-    } else if (LocalActionHandler.tryHandle(
-      controller: controller,
-      message: message,
-    )) {
+    if (UiInteraction.isUiInteraction(message)) {
       return;
     }
 

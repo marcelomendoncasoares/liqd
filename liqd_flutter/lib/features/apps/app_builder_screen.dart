@@ -7,7 +7,7 @@ import 'package:serverpod_client/serverpod_client.dart';
 import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 
 import '../chat/gen_ui_controller.dart';
-import '../chat/local_calculator_action_delegate.dart';
+import '../chat/local_state_action_delegate.dart';
 import '../catalog/stac_template_merger.dart';
 
 class AppBuilderScreen extends StatefulWidget {
@@ -400,9 +400,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                                       surfaceId,
                                     ),
                                     actionDelegate:
-                                        LocalCalculatorActionDelegate(
-                                          controller: controller,
-                                        ),
+                                        const LocalStateActionDelegate(),
                                     defaultBuilder: (context) => const Center(
                                       child: CircularProgressIndicator(),
                                     ),
