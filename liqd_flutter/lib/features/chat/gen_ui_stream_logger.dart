@@ -1,11 +1,17 @@
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:genui/genui.dart';
 
+import 'gen_ui_update_outcome.dart';
+
 /// Debug logging for GenUI model streams and parsed A2UI messages.
 abstract final class GenUiStreamLogger {
   static const _name = 'GenUiStream';
+
+  /// Flutter DevTools / VM service truncates large single [developer.log] payloads.
+  static const _chunkSize = 256;
 
   static void logRequest({
     required String userMessage,
@@ -16,14 +22,19 @@ abstract final class GenUiStreamLogger {
       return;
     }
     developer.log(
-      'Request model=$model user="${_truncate(userMessage, 200)}" '
-      'hasExistingSurfaces=${existingSurfacesJson != null}',
+      'Request model=$model hasExistingSurfaces=${existingSurfacesJson != null}',
       name: _name,
     );
+    _logLongText(
+      name: _name,
+      text: userMessage,
+      header: 'User message:',
+    );
     if (existingSurfacesJson != null) {
-      developer.log(
-        'Existing surfaces JSON:\n$existingSurfacesJson',
+      _logLongText(
         name: _name,
+        text: existingSurfacesJson,
+        header: 'Existing surfaces JSON:',
       );
     }
   }
@@ -32,8 +43,7 @@ abstract final class GenUiStreamLogger {
     if (!kDebugMode) {
       return;
     }
-    // Stream chunks are often partial; log without extra wrapping.
-    developer.log(chunk, name: '$_name.raw');
+    _logLongText(name: '$_name.raw', text: chunk);
   }
 
   static void logStreamComplete({
@@ -45,7 +55,7 @@ abstract final class GenUiStreamLogger {
     if (!kDebugMode) {
       return;
     }
-    final containsA2ui = _responseContainsA2ui(rawResponse);
+    final containsA2ui = GenUiUpdateOutcome.responseContainsA2ui(rawResponse);
     developer.log(
       'Stream complete (${rawResponse.length} chars, '
       'containsA2ui=$containsA2ui, parsedMessages=$parsedMessageCount, '
@@ -56,9 +66,10 @@ abstract final class GenUiStreamLogger {
       'Parsed A2UI types: ${parsedMessageTypes.isEmpty ? "(none)" : parsedMessageTypes.join(", ")}',
       name: _name,
     );
-    developer.log(
-      'Full model response:\n$rawResponse',
+    _logLongText(
       name: '$_name.response',
+      text: rawResponse,
+      header: 'Full model response (${rawResponse.length} chars):',
     );
     if (!containsA2ui) {
       developer.log(
@@ -108,18 +119,38 @@ abstract final class GenUiStreamLogger {
     );
   }
 
-  static bool _responseContainsA2ui(String response) {
-    final lower = response.toLowerCase();
-    return lower.contains('updatecomponents') ||
-        lower.contains('createsurface') ||
-        lower.contains('updatedatamodel') ||
-        lower.contains('deletesurface');
-  }
-
-  static String _truncate(String value, int maxLength) {
-    if (value.length <= maxLength) {
-      return value;
+  static void _logLongText({
+    required String name,
+    required String text,
+    String? header,
+  }) {
+    if (text.isEmpty) {
+      developer.log(header ?? '(empty)', name: name);
+      return;
     }
-    return '${value.substring(0, maxLength)}...';
+
+    if (text.length <= _chunkSize && header == null) {
+      developer.log(text, name: name);
+      return;
+    }
+
+    if (text.length <= _chunkSize) {
+      developer.log('$header\n$text', name: name);
+      return;
+    }
+
+    final partCount = (text.length / _chunkSize).ceil();
+    if (header != null) {
+      developer.log(header, name: name);
+    }
+
+    for (var index = 0; index < partCount; index++) {
+      final start = index * _chunkSize;
+      final end = math.min(start + _chunkSize, text.length);
+      developer.log(
+        '[${index + 1}/$partCount] ${text.substring(start, end)}',
+        name: name,
+      );
+    }
   }
 }

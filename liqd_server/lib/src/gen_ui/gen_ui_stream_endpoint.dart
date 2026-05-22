@@ -8,6 +8,7 @@ import '../ai/open_router_config.dart';
 import '../widgets/stac_validator.dart';
 import '../widgets/widget_catalog_endpoint.dart';
 import 'a2ui_stream_normalizer.dart';
+import 'gen_ui_dev_logger.dart';
 import 'gen_ui_dev_mock.dart';
 import 'gen_ui_prompt_service.dart';
 
@@ -304,9 +305,13 @@ class GenUiStreamEndpoint extends Endpoint {
     final containsA2ui = GenUiPromptService.responseContainsA2ui(fullResponse);
     session.log(
       'GenUI model response model=$model isEdit=$isEdit '
-      '(${fullResponse.length} chars, containsA2ui=$containsA2ui):\n'
-      '$fullResponse',
+      '(${fullResponse.length} chars, containsA2ui=$containsA2ui)',
       level: LogLevel.info,
+    );
+    GenUiDevLogger.logLongText(
+      session,
+      fullResponse,
+      header: 'Model response body:',
     );
 
     if (!containsA2ui) {

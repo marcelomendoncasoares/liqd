@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:serverpod_client/serverpod_client.dart';
 import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 
 import '../chat/gen_ui_controller.dart';
+import '../chat/gen_ui_update_outcome.dart';
 import '../chat/local_state_action_delegate.dart';
 import '../catalog/stac_template_merger.dart';
 
@@ -33,10 +35,13 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
   final _chatMessages = <_ChatBubble>[];
   final _surfaceIds = <String>[];
   String _latestAssistantText = '';
+  String? _previewWarning;
   bool _initializing = true;
   bool _isWaiting = false;
   String? _initError;
   int? _appId;
+
+  StreamSubscription<GenUiUpdateOutcome>? _updateOutcomeSubscription;
 
   @override
   void initState() {
@@ -48,12 +53,16 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
       savedSurfaceState: widget.existingApp?.surfaceState,
     );
     widget.client.auth.authInfoListenable.addListener(_onAuthChanged);
+    _updateOutcomeSubscription = _genUiController.updateOutcomes.listen(
+      _onUpdateOutcome,
+    );
     _initialize();
   }
 
   @override
   void dispose() {
     widget.client.auth.authInfoListenable.removeListener(_onAuthChanged);
+    unawaited(_updateOutcomeSubscription?.cancel());
     _genUiController.dispose();
     _textController.dispose();
     _scrollController.dispose();
@@ -131,6 +140,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
           if (!_surfaceIds.contains(surfaceId)) {
             _surfaceIds.add(surfaceId);
           }
+          _previewWarning = null;
           _upsertAssistantMessage('App created.');
         });
       case ConversationComponentsUpdated(:final surfaceId):
@@ -138,6 +148,7 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
           if (!_surfaceIds.contains(surfaceId)) {
             _surfaceIds.add(surfaceId);
           }
+          _previewWarning = null;
           _upsertAssistantMessage('App updated.');
         });
       case ConversationSurfaceRemoved(:final surfaceId):
@@ -168,7 +179,18 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     }
   }
 
-  void _upsertAssistantMessage(String text) {
+  void _onUpdateOutcome(GenUiUpdateOutcome outcome) {
+    if (!mounted || !outcome.isWarning) {
+      return;
+    }
+
+    setState(() {
+      _previewWarning = outcome.message;
+      _upsertAssistantMessage(outcome.message, isWarning: true);
+    });
+  }
+
+  void _upsertAssistantMessage(String text, {bool isWarning = false}) {
     if (text.trim().isEmpty) {
       return;
     }
@@ -181,9 +203,12 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
       _chatMessages[_chatMessages.length - 1] = _ChatBubble(
         text: text,
         isUser: false,
+        isWarning: isWarning,
       );
     } else {
-      _chatMessages.add(_ChatBubble(text: text, isUser: false));
+      _chatMessages.add(
+        _ChatBubble(text: text, isUser: false, isWarning: isWarning),
+      );
     }
   }
 
@@ -381,6 +406,31 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_previewWarning != null) ...[
+                    MaterialBanner(
+                      key: const ValueKey('preview_update_warning'),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.errorContainer,
+                      leading: Icon(
+                        Icons.warning_amber_rounded,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                      content: Text(
+                        _previewWarning!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: _retryLastMessage,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   for (final surfaceId in _surfaceIds)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -438,10 +488,25 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                   decoration: BoxDecoration(
                     color: message.isUser
                         ? Theme.of(context).colorScheme.primaryContainer
+                        : message.isWarning
+                        ? Theme.of(context).colorScheme.errorContainer
                         : Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(message.text),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.isWarning) ...[
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Flexible(child: Text(message.text)),
+                    ],
+                  ),
                 ),
               );
             },
@@ -507,8 +572,13 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
 }
 
 class _ChatBubble {
-  const _ChatBubble({required this.text, required this.isUser});
+  const _ChatBubble({
+    required this.text,
+    required this.isUser,
+    this.isWarning = false,
+  });
 
   final String text;
   final bool isUser;
+  final bool isWarning;
 }

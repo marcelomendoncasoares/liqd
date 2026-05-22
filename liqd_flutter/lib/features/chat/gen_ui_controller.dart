@@ -7,6 +7,7 @@ import '../catalog/catalog_builder.dart';
 import '../catalog/stac_template_merger.dart';
 import 'component_tree_merger.dart';
 import 'gen_ui_stream_logger.dart';
+import 'gen_ui_update_outcome.dart';
 import 'generation_cancel_token.dart';
 import 'serverpod_transport.dart';
 import 'surface_context_builder.dart';
@@ -21,6 +22,8 @@ class GenUiController {
   }) {
     _savedSurfaceState = savedSurfaceState;
   }
+
+  final _updateOutcomes = StreamController<GenUiUpdateOutcome>.broadcast();
 
   final Client client;
   final String model;
@@ -45,6 +48,7 @@ class GenUiController {
   Conversation? get conversation => _conversation;
   List<GenUiChatMessage> get messageHistory =>
       List.unmodifiable(_messageHistory);
+  Stream<GenUiUpdateOutcome> get updateOutcomes => _updateOutcomes.stream;
 
   Future<void> initialize() async {
     await _loadCatalog();
@@ -71,10 +75,19 @@ class GenUiController {
 
   /// Cancels the active server generation stream, if any.
   Future<void> stopGeneration() async {
+    if (!_streamInFlight) {
+      return;
+    }
     _cancelToken?.cancel();
     await _streamSubscription?.cancel();
     _streamSubscription = null;
     _streamInFlight = false;
+    _emitStreamOutcome(
+      const GenUiUpdateOutcome(
+        kind: GenUiUpdateOutcomeKind.cancelled,
+        message: 'Generation stopped.',
+      ),
+    );
   }
 
   /// Re-sends the last user message without duplicating history.
@@ -176,6 +189,7 @@ class GenUiController {
     // GenUI forwards validation/runtime errors to onSubmit, which would
     // otherwise trigger a new OpenRouter call per error (rate-limit storm).
     if (UiInteraction.isErrorFeedback(message)) {
+      _emitValidationError(message);
       return;
     }
 
@@ -189,6 +203,7 @@ class GenUiController {
 
     _cancelToken = GenerationCancelToken();
     _streamInFlight = true;
+    final cancelToken = _cancelToken!;
 
     final parsedMessageTypes = <String>[];
     var surfaceUpdated = false;
@@ -214,7 +229,7 @@ class GenUiController {
         history: List.from(_messageHistory),
         message: message,
         model: model,
-        cancelToken: _cancelToken!,
+        cancelToken: cancelToken,
         existingSurfacesJson: buildExistingSurfacesJson(controller),
         onSubscription: (subscription) {
           _streamSubscription = subscription;
@@ -227,6 +242,16 @@ class GenUiController {
         parsedMessageTypes: parsedMessageTypes,
         surfaceUpdated: surfaceUpdated,
       );
+
+      _emitStreamOutcome(
+        GenUiUpdateOutcome.evaluate(
+          rawResponse: rawResponse,
+          parsedMessageCount: parsedMessageTypes.length,
+          parsedMessageTypes: parsedMessageTypes,
+          surfaceUpdated: surfaceUpdated,
+          wasCancelled: cancelToken.isCancelled,
+        ),
+      );
     } on Object catch (error, stackTrace) {
       GenUiStreamLogger.logError(error, stackTrace);
       rethrow;
@@ -237,6 +262,31 @@ class GenUiController {
       _streamSubscription = null;
       _streamInFlight = false;
     }
+  }
+
+  void _emitValidationError(ChatMessage message) {
+    final feedback = UiInteraction.parseErrorFeedback(message);
+    if (feedback == null) {
+      return;
+    }
+
+    _emitStreamOutcome(
+      GenUiUpdateOutcome.validationFailed(
+        message: feedback.message,
+        surfaceId: feedback.surfaceId,
+        path: feedback.path,
+      ),
+    );
+  }
+
+  void _emitStreamOutcome(GenUiUpdateOutcome outcome) {
+    if (!outcome.isWarning) {
+      return;
+    }
+    if (_updateOutcomes.isClosed) {
+      return;
+    }
+    _updateOutcomes.add(outcome);
   }
 
   void _restoreSurfaces(Map<String, dynamic> state) {
@@ -300,5 +350,6 @@ class GenUiController {
     _conversation?.dispose();
     _transport?.dispose();
     _surfaceController?.dispose();
+    unawaited(_updateOutcomes.close());
   }
 }
