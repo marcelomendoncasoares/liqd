@@ -124,5 +124,23 @@ void main() {
       expect(todos, hasLength(1));
       expect(todos!.first, {'text': 'Two'});
     });
+    test('pushToPath resolves nested path bindings in value', () {
+      model().update(DataPath('/todos'), <Object?>[]);
+      model().update(DataPath('/todoInput'), 'Buy milk');
+
+      const PushToPathFunction().executeSync(
+        {
+          'path': '/todos',
+          'value': {
+            'task': {'path': '/todoInput'},
+            'done': false,
+          },
+        },
+        context(),
+      );
+
+      final todos = model().getValue<List<Object?>>(DataPath('/todos'));
+      expect(todos!.first, {'task': 'Buy milk', 'done': false});
+    });
   });
 }

@@ -61,6 +61,21 @@ Object? _readAt(ExecutionContext context, DataPath path) {
   return context.getValue<Object?>(path);
 }
 
+Object? _resolveBoundValue(Object? value, ExecutionContext context) {
+  if (value is Map) {
+    if (value.containsKey('path')) {
+      return context.getValue<Object?>(_pathArg(value['path']));
+    }
+    return value.map<String, Object?>(
+      (key, nested) => MapEntry(key, _resolveBoundValue(nested, context)),
+    );
+  }
+  if (value is List) {
+    return value.map((item) => _resolveBoundValue(item, context)).toList();
+  }
+  return value;
+}
+
 /// Sets a value at an absolute data model [path].
 final class SetPathFunction extends SynchronousClientFunction {
   const SetPathFunction();
@@ -252,7 +267,7 @@ final class PushToPathFunction extends SynchronousClientFunction {
   @override
   Object? executeSync(JsonMap args, ExecutionContext context) {
     final path = _pathArg(args['path']);
-    final value = args['value'];
+    final value = _resolveBoundValue(args['value'], context);
     final current = _readAt(context, path);
     final list = switch (current) {
       List<Object?> values => List<Object?>.from(values),

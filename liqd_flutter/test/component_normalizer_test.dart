@@ -29,5 +29,32 @@ void main() {
       expect(normalized[1].type, 'Text');
       expect(normalized[1].properties['text'], 'Add');
     });
+    test('adds label and value defaults for CheckBox', () {
+      final normalized = ComponentNormalizer.normalize([
+        const Component(
+          id: 'checkbox',
+          type: 'CheckBox',
+          properties: {
+            'value': {'path': 'done'},
+          },
+        ),
+      ]);
+
+      expect(normalized.single.properties['label'], 'Done');
+    });
+
+    test('rewrites mistaken absolute template text paths', () {
+      final normalized = ComponentNormalizer.normalize([
+        const Component(
+          id: 'taskText',
+          type: 'Text',
+          properties: {
+            'text': {'path': '/text'},
+          },
+        ),
+      ]);
+
+      expect(normalized.single.properties['text'], {'path': 'text'});
+    });
   });
 }

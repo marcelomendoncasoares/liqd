@@ -47,5 +47,29 @@ void main() {
       expect(normalized, hasLength(2));
       expect(normalized[0]['child'], 'addLabel');
     });
+    test('adds label and value defaults for CheckBox', () {
+      final normalized = ComponentNormalizer.normalizeJsonList([
+        {
+          'id': 'checkbox',
+          'component': 'CheckBox',
+          'value': {'path': 'done'},
+        },
+      ]);
+
+      expect(normalized.single['label'], 'Done');
+      expect(normalized.single['value'], {'path': 'done'});
+    });
+
+    test('rewrites mistaken absolute template text paths', () {
+      final normalized = ComponentNormalizer.normalizeJsonList([
+        {
+          'id': 'taskText',
+          'component': 'Text',
+          'text': {'path': '/text'},
+        },
+      ]);
+
+      expect(normalized.single['text'], {'path': 'text'});
+    });
   });
 }

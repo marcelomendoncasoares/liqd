@@ -187,7 +187,7 @@ ${_formatUserCatalogEntries(catalogEntries)}
 - Text — display string or {"path":"/key"}; optional variant h1–h5, body, caption
 - Button — requires "child" (component id) + "action"; NEVER use "label"
 - TextField — two-way "value" binding; variants shortText, longText, number, obscured
-- CheckBox — boolean input with label
+- CheckBox — boolean "value" binding; MUST include "label" (string or path)
 - Card — grouped content container
 - Divider — horizontal separator
 - Icon — Material icon by name

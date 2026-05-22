@@ -12,6 +12,10 @@ abstract final class ComponentNormalizer {
           normalized.add(_normalizeButton(component, extras));
         case 'Card':
           normalized.add(_normalizeCard(component, extras));
+        case 'CheckBox':
+          normalized.add(_normalizeCheckBox(component));
+        case 'Text':
+          normalized.add(_normalizeText(component));
         default:
           normalized.add(component);
       }
@@ -99,6 +103,52 @@ abstract final class ComponentNormalizer {
       type: component.type,
       properties: props,
     );
+  }
+
+  static Component _normalizeCheckBox(Component component) {
+    final props = Map<String, Object?>.from(component.properties);
+    final label = props['label'];
+    if (label == null || (label is String && label.isEmpty)) {
+      props['label'] = 'Done';
+    }
+    props.putIfAbsent('value', () => {'path': 'done'});
+    return Component(
+      id: component.id,
+      type: component.type,
+      properties: props,
+    );
+  }
+
+  static Component _normalizeText(Component component) {
+    final props = Map<String, Object?>.from(component.properties);
+    final text = props['text'];
+    if (text == null) {
+      props['text'] = {'path': 'text'};
+      return Component(
+        id: component.id,
+        type: component.type,
+        properties: props,
+      );
+    }
+    if (text is Map && text['path'] is String) {
+      props['text'] = _maybeRelativePath(text['path'] as String);
+    }
+    return Component(
+      id: component.id,
+      type: component.type,
+      properties: props,
+    );
+  }
+
+  static Map<String, String> _maybeRelativePath(String path) {
+    if (!path.startsWith('/') || path == '/') {
+      return {'path': path};
+    }
+    final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+    if (segments.length == 1) {
+      return {'path': segments.first};
+    }
+    return {'path': path};
   }
 
   static String? _extractInlineLabel(Map<String, Object?> properties) {
