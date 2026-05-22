@@ -17,17 +17,19 @@ import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _i4;
 import 'apps/user_app.dart' as _i5;
-import 'gen_ui/gen_ui_chat_message.dart' as _i6;
-import 'gen_ui/gen_ui_chat_request.dart' as _i7;
-import 'gen_ui/gen_ui_stream_exception.dart' as _i8;
-import 'widgets/user_widget.dart' as _i9;
-import 'widgets/widget_validation_result.dart' as _i10;
-import 'package:liqd_server/src/generated/apps/user_app.dart' as _i11;
-import 'package:liqd_server/src/generated/widgets/user_widget.dart' as _i12;
+import 'stac_app/stac_chat_message.dart' as _i6;
+import 'stac_app/stac_generate_exception.dart' as _i7;
+import 'stac_app/stac_generate_request.dart' as _i8;
+import 'stac_app/stac_generate_response.dart' as _i9;
+import 'widgets/user_widget.dart' as _i10;
+import 'widgets/widget_validation_result.dart' as _i11;
+import 'package:liqd_server/src/generated/apps/user_app.dart' as _i12;
+import 'package:liqd_server/src/generated/widgets/user_widget.dart' as _i13;
 export 'apps/user_app.dart';
-export 'gen_ui/gen_ui_chat_message.dart';
-export 'gen_ui/gen_ui_chat_request.dart';
-export 'gen_ui/gen_ui_stream_exception.dart';
+export 'stac_app/stac_chat_message.dart';
+export 'stac_app/stac_generate_exception.dart';
+export 'stac_app/stac_generate_request.dart';
+export 'stac_app/stac_generate_response.dart';
 export 'widgets/user_widget.dart';
 export 'widgets/widget_validation_result.dart';
 
@@ -204,39 +206,47 @@ class Protocol extends _i1.DatabaseSerializationManager {
     if (t == _i5.UserApp) {
       return _i5.UserApp.fromJson(data) as T;
     }
-    if (t == _i6.GenUiChatMessage) {
-      return _i6.GenUiChatMessage.fromJson(data) as T;
+    if (t == _i6.StacChatMessage) {
+      return _i6.StacChatMessage.fromJson(data) as T;
     }
-    if (t == _i7.GenUiChatRequest) {
-      return _i7.GenUiChatRequest.fromJson(data) as T;
+    if (t == _i7.StacGenerateException) {
+      return _i7.StacGenerateException.fromJson(data) as T;
     }
-    if (t == _i8.GenUiStreamException) {
-      return _i8.GenUiStreamException.fromJson(data) as T;
+    if (t == _i8.StacGenerateRequest) {
+      return _i8.StacGenerateRequest.fromJson(data) as T;
     }
-    if (t == _i9.UserWidget) {
-      return _i9.UserWidget.fromJson(data) as T;
+    if (t == _i9.StacGenerateResponse) {
+      return _i9.StacGenerateResponse.fromJson(data) as T;
     }
-    if (t == _i10.WidgetValidationResult) {
-      return _i10.WidgetValidationResult.fromJson(data) as T;
+    if (t == _i10.UserWidget) {
+      return _i10.UserWidget.fromJson(data) as T;
+    }
+    if (t == _i11.WidgetValidationResult) {
+      return _i11.WidgetValidationResult.fromJson(data) as T;
     }
     if (t == _i1.getType<_i5.UserApp?>()) {
       return (data != null ? _i5.UserApp.fromJson(data) : null) as T;
     }
-    if (t == _i1.getType<_i6.GenUiChatMessage?>()) {
-      return (data != null ? _i6.GenUiChatMessage.fromJson(data) : null) as T;
+    if (t == _i1.getType<_i6.StacChatMessage?>()) {
+      return (data != null ? _i6.StacChatMessage.fromJson(data) : null) as T;
     }
-    if (t == _i1.getType<_i7.GenUiChatRequest?>()) {
-      return (data != null ? _i7.GenUiChatRequest.fromJson(data) : null) as T;
-    }
-    if (t == _i1.getType<_i8.GenUiStreamException?>()) {
-      return (data != null ? _i8.GenUiStreamException.fromJson(data) : null)
+    if (t == _i1.getType<_i7.StacGenerateException?>()) {
+      return (data != null ? _i7.StacGenerateException.fromJson(data) : null)
           as T;
     }
-    if (t == _i1.getType<_i9.UserWidget?>()) {
-      return (data != null ? _i9.UserWidget.fromJson(data) : null) as T;
+    if (t == _i1.getType<_i8.StacGenerateRequest?>()) {
+      return (data != null ? _i8.StacGenerateRequest.fromJson(data) : null)
+          as T;
     }
-    if (t == _i1.getType<_i10.WidgetValidationResult?>()) {
-      return (data != null ? _i10.WidgetValidationResult.fromJson(data) : null)
+    if (t == _i1.getType<_i9.StacGenerateResponse?>()) {
+      return (data != null ? _i9.StacGenerateResponse.fromJson(data) : null)
+          as T;
+    }
+    if (t == _i1.getType<_i10.UserWidget?>()) {
+      return (data != null ? _i10.UserWidget.fromJson(data) : null) as T;
+    }
+    if (t == _i1.getType<_i11.WidgetValidationResult?>()) {
+      return (data != null ? _i11.WidgetValidationResult.fromJson(data) : null)
           as T;
     }
     if (t == Map<String, dynamic>) {
@@ -248,9 +258,9 @@ class Protocol extends _i1.DatabaseSerializationManager {
     if (t == dynamic) {
       return deserializeDynamicFieldValue(data) as T;
     }
-    if (t == List<_i6.GenUiChatMessage>) {
+    if (t == List<_i6.StacChatMessage>) {
       return (data as List)
-              .map((e) => deserialize<_i6.GenUiChatMessage>(e))
+              .map((e) => deserialize<_i6.StacChatMessage>(e))
               .toList()
           as T;
     }
@@ -272,8 +282,12 @@ class Protocol extends _i1.DatabaseSerializationManager {
               : null)
           as T;
     }
-    if (t == List<_i11.UserApp>) {
-      return (data as List).map((e) => deserialize<_i11.UserApp>(e)).toList()
+    if (t == List<_i12.UserApp>) {
+      return (data as List).map((e) => deserialize<_i12.UserApp>(e)).toList()
+          as T;
+    }
+    if (t == List<_i13.UserWidget>) {
+      return (data as List).map((e) => deserialize<_i13.UserWidget>(e)).toList()
           as T;
     }
     if (t == Map<String, dynamic>) {
@@ -291,10 +305,6 @@ class Protocol extends _i1.DatabaseSerializationManager {
               : null)
           as T;
     }
-    if (t == List<_i12.UserWidget>) {
-      return (data as List).map((e) => deserialize<_i12.UserWidget>(e)).toList()
-          as T;
-    }
     try {
       return _i3.Protocol().deserialize<T>(data, t);
     } on _i1.DeserializationTypeNotFoundException catch (_) {}
@@ -310,11 +320,12 @@ class Protocol extends _i1.DatabaseSerializationManager {
   static String? getClassNameForType(Type type) {
     return switch (type) {
       _i5.UserApp => 'UserApp',
-      _i6.GenUiChatMessage => 'GenUiChatMessage',
-      _i7.GenUiChatRequest => 'GenUiChatRequest',
-      _i8.GenUiStreamException => 'GenUiStreamException',
-      _i9.UserWidget => 'UserWidget',
-      _i10.WidgetValidationResult => 'WidgetValidationResult',
+      _i6.StacChatMessage => 'StacChatMessage',
+      _i7.StacGenerateException => 'StacGenerateException',
+      _i8.StacGenerateRequest => 'StacGenerateRequest',
+      _i9.StacGenerateResponse => 'StacGenerateResponse',
+      _i10.UserWidget => 'UserWidget',
+      _i11.WidgetValidationResult => 'WidgetValidationResult',
       _ => null,
     };
   }
@@ -331,15 +342,17 @@ class Protocol extends _i1.DatabaseSerializationManager {
     switch (data) {
       case _i5.UserApp():
         return 'UserApp';
-      case _i6.GenUiChatMessage():
-        return 'GenUiChatMessage';
-      case _i7.GenUiChatRequest():
-        return 'GenUiChatRequest';
-      case _i8.GenUiStreamException():
-        return 'GenUiStreamException';
-      case _i9.UserWidget():
+      case _i6.StacChatMessage():
+        return 'StacChatMessage';
+      case _i7.StacGenerateException():
+        return 'StacGenerateException';
+      case _i8.StacGenerateRequest():
+        return 'StacGenerateRequest';
+      case _i9.StacGenerateResponse():
+        return 'StacGenerateResponse';
+      case _i10.UserWidget():
         return 'UserWidget';
-      case _i10.WidgetValidationResult():
+      case _i11.WidgetValidationResult():
         return 'WidgetValidationResult';
     }
     className = _i3.Protocol().getClassNameForObject(data);
@@ -370,20 +383,23 @@ class Protocol extends _i1.DatabaseSerializationManager {
     if (dataClassName == 'UserApp') {
       return deserialize<_i5.UserApp>(data['data']);
     }
-    if (dataClassName == 'GenUiChatMessage') {
-      return deserialize<_i6.GenUiChatMessage>(data['data']);
+    if (dataClassName == 'StacChatMessage') {
+      return deserialize<_i6.StacChatMessage>(data['data']);
     }
-    if (dataClassName == 'GenUiChatRequest') {
-      return deserialize<_i7.GenUiChatRequest>(data['data']);
+    if (dataClassName == 'StacGenerateException') {
+      return deserialize<_i7.StacGenerateException>(data['data']);
     }
-    if (dataClassName == 'GenUiStreamException') {
-      return deserialize<_i8.GenUiStreamException>(data['data']);
+    if (dataClassName == 'StacGenerateRequest') {
+      return deserialize<_i8.StacGenerateRequest>(data['data']);
+    }
+    if (dataClassName == 'StacGenerateResponse') {
+      return deserialize<_i9.StacGenerateResponse>(data['data']);
     }
     if (dataClassName == 'UserWidget') {
-      return deserialize<_i9.UserWidget>(data['data']);
+      return deserialize<_i10.UserWidget>(data['data']);
     }
     if (dataClassName == 'WidgetValidationResult') {
-      return deserialize<_i10.WidgetValidationResult>(data['data']);
+      return deserialize<_i11.WidgetValidationResult>(data['data']);
     }
     if (dataClassName.startsWith('serverpod_auth_idp.')) {
       data['className'] = dataClassName.substring(19);
@@ -428,8 +444,8 @@ class Protocol extends _i1.DatabaseSerializationManager {
     switch (t) {
       case _i5.UserApp:
         return _i5.UserApp.t;
-      case _i9.UserWidget:
-        return _i9.UserWidget.t;
+      case _i10.UserWidget:
+        return _i10.UserWidget.t;
     }
     return null;
   }

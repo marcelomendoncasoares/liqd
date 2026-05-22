@@ -14,9 +14,8 @@ emailIdp:
   - hasAccount:
 jwtRefresh:
   - refreshAccessToken:
-genUiStream:
-  - chatStream:
-  - generateWidget:
+stacApp:
+  - generateApp:
 widgetCatalog:
   - listMyWidgets:
   - createWidget:

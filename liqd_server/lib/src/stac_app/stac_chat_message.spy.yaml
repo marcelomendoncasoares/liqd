@@ -1,0 +1,4 @@
+class: StacChatMessage
+fields:
+  role: String
+  content: String

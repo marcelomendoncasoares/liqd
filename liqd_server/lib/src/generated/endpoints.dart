@@ -14,9 +14,9 @@ import 'package:serverpod/serverpod.dart' as _i1;
 import '../apps/user_app_endpoint.dart' as _i2;
 import '../auth/email_idp_endpoint.dart' as _i3;
 import '../auth/jwt_refresh_endpoint.dart' as _i4;
-import '../gen_ui/gen_ui_stream_endpoint.dart' as _i5;
+import '../stac_app/stac_app_endpoint.dart' as _i5;
 import '../widgets/widget_catalog_endpoint.dart' as _i6;
-import 'package:liqd_server/src/generated/gen_ui/gen_ui_chat_request.dart'
+import 'package:liqd_server/src/generated/stac_app/stac_generate_request.dart'
     as _i7;
 import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
     as _i8;
@@ -45,10 +45,10 @@ class Endpoints extends _i1.EndpointDispatch {
           'jwtRefresh',
           null,
         ),
-      'genUiStream': _i5.GenUiStreamEndpoint()
+      'stacApp': _i5.StacAppEndpoint()
         ..initialize(
           server,
-          'genUiStream',
+          'stacApp',
           null,
         ),
       'widgetCatalog': _i6.WidgetCatalogEndpoint()
@@ -346,65 +346,25 @@ class Endpoints extends _i1.EndpointDispatch {
         ),
       },
     );
-    connectors['genUiStream'] = _i1.EndpointConnector(
-      name: 'genUiStream',
-      endpoint: endpoints['genUiStream']!,
+    connectors['stacApp'] = _i1.EndpointConnector(
+      name: 'stacApp',
+      endpoint: endpoints['stacApp']!,
       methodConnectors: {
-        'generateWidget': _i1.MethodConnector(
-          name: 'generateWidget',
-          params: {
-            'name': _i1.ParameterDescription(
-              name: 'name',
-              type: _i1.getType<String>(),
-              nullable: false,
-            ),
-            'description': _i1.ParameterDescription(
-              name: 'description',
-              type: _i1.getType<String>(),
-              nullable: false,
-            ),
-            'dataSchema': _i1.ParameterDescription(
-              name: 'dataSchema',
-              type: _i1.getType<Map<String, dynamic>?>(),
-              nullable: true,
-            ),
-            'stacJson': _i1.ParameterDescription(
-              name: 'stacJson',
-              type: _i1.getType<Map<String, dynamic>>(),
-              nullable: false,
-            ),
-          },
-          call:
-              (
-                _i1.Session session,
-                Map<String, dynamic> params,
-              ) async => (endpoints['genUiStream'] as _i5.GenUiStreamEndpoint)
-                  .generateWidget(
-                    session,
-                    name: params['name'],
-                    description: params['description'],
-                    dataSchema: params['dataSchema'],
-                    stacJson: params['stacJson'],
-                  ),
-        ),
-        'chatStream': _i1.MethodStreamConnector(
-          name: 'chatStream',
+        'generateApp': _i1.MethodConnector(
+          name: 'generateApp',
           params: {
             'request': _i1.ParameterDescription(
               name: 'request',
-              type: _i1.getType<_i7.GenUiChatRequest>(),
+              type: _i1.getType<_i7.StacGenerateRequest>(),
               nullable: false,
             ),
           },
-          streamParams: {},
-          returnType: _i1.MethodStreamReturnType.streamType,
           call:
               (
                 _i1.Session session,
                 Map<String, dynamic> params,
-                Map<String, Stream> streamParams,
-              ) => (endpoints['genUiStream'] as _i5.GenUiStreamEndpoint)
-                  .chatStream(
+              ) async =>
+                  (endpoints['stacApp'] as _i5.StacAppEndpoint).generateApp(
                     session,
                     params['request'],
                   ),

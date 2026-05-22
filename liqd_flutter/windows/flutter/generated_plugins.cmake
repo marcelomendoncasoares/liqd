@@ -3,12 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  audioplayers_windows
   connectivity_plus
   desktop_webview_window
   flutter_secure_storage_windows
   url_launcher_windows
-  video_player_win
   window_to_front
 )
 

@@ -1,16 +1,12 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:genui/genui.dart';
 import 'package:liqd_client/liqd_client.dart';
-import 'package:serverpod_client/serverpod_client.dart';
 import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 
-import '../chat/gen_ui_controller.dart';
-import '../chat/gen_ui_update_outcome.dart';
-import '../chat/local_state_action_delegate.dart';
-import '../catalog/stac_template_merger.dart';
+import '../catalog/reactive_stac_host.dart';
+import '../stac_app/stac_app_controller.dart';
+import '../stac_app/stac_generate_outcome.dart';
 
 class AppBuilderScreen extends StatefulWidget {
   const AppBuilderScreen({
@@ -29,41 +25,32 @@ class AppBuilderScreen extends StatefulWidget {
 }
 
 class _AppBuilderScreenState extends State<AppBuilderScreen> {
-  late final GenUiController _genUiController;
+  late final StacAppController _controller;
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _chatMessages = <_ChatBubble>[];
-  final _surfaceIds = <String>[];
-  String _latestAssistantText = '';
   String? _previewWarning;
   bool _initializing = true;
   bool _isWaiting = false;
   String? _initError;
   int? _appId;
 
-  StreamSubscription<GenUiUpdateOutcome>? _updateOutcomeSubscription;
-
   @override
   void initState() {
     super.initState();
     _appId = widget.existingApp?.id;
-    _genUiController = GenUiController(
+    _controller = StacAppController(
       client: widget.client,
       model: widget.model,
-      savedSurfaceState: widget.existingApp?.surfaceState,
+      savedState: widget.existingApp?.surfaceState,
     );
     widget.client.auth.authInfoListenable.addListener(_onAuthChanged);
-    _updateOutcomeSubscription = _genUiController.updateOutcomes.listen(
-      _onUpdateOutcome,
-    );
     _initialize();
   }
 
   @override
   void dispose() {
     widget.client.auth.authInfoListenable.removeListener(_onAuthChanged);
-    unawaited(_updateOutcomeSubscription?.cancel());
-    _genUiController.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -82,14 +69,8 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
 
   Future<void> _initialize() async {
     try {
-      await _genUiController.initialize();
-      final conversation = _genUiController.conversation;
-      if (conversation != null) {
-        conversation.events.listen(_onConversationEvent);
-        conversation.state.addListener(_onStateChanged);
-      }
       if (widget.existingApp != null) {
-        for (final message in _genUiController.messageHistory) {
+        for (final message in _controller.messageHistory) {
           _chatMessages.add(
             _ChatBubble(
               text: message.content,
@@ -102,9 +83,6 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
         return;
       }
       setState(() {
-        _surfaceIds.addAll(
-          _genUiController.surfaceController?.activeSurfaceIds ?? [],
-        );
         _initializing = false;
       });
     } on ServerpodClientUnauthorized {
@@ -120,73 +98,24 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     }
   }
 
-  void _onStateChanged() {
-    final state = _genUiController.conversation?.state.value;
-    if (state == null) {
+  void _handleOutcome(StacGenerateOutcome outcome) {
+    if (!mounted) {
       return;
     }
-    setState(() {
-      _isWaiting = state.isWaiting || _genUiController.isGenerating;
-      if (state.latestText.isNotEmpty) {
-        _latestAssistantText = state.latestText;
-      }
-    });
-  }
 
-  void _onConversationEvent(ConversationEvent event) {
-    switch (event) {
-      case ConversationSurfaceAdded(:final surfaceId):
-        setState(() {
-          if (!_surfaceIds.contains(surfaceId)) {
-            _surfaceIds.add(surfaceId);
-          }
-          _previewWarning = null;
-          _upsertAssistantMessage('App created.');
-        });
-      case ConversationComponentsUpdated(:final surfaceId):
-        setState(() {
-          if (!_surfaceIds.contains(surfaceId)) {
-            _surfaceIds.add(surfaceId);
-          }
-          _previewWarning = null;
-          _upsertAssistantMessage('App updated.');
-        });
-      case ConversationSurfaceRemoved(:final surfaceId):
-        setState(() {
-          _surfaceIds.remove(surfaceId);
-        });
-      case ConversationContentReceived(:final text):
-        // App builder output is the preview, not chat prose from the model.
-        if (_looksLikeA2uiPayload(text)) {
-          return;
-        }
-        setState(() {
-          _latestAssistantText = text;
-        });
-      case ConversationError(:final error):
-        if (!mounted) {
-          return;
-        }
-        final message = error.toString().replaceFirst('Exception: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      default:
-        break;
-    }
-  }
-
-  void _onUpdateOutcome(GenUiUpdateOutcome outcome) {
-    if (!mounted || !outcome.isWarning) {
+    if (outcome.isWarning) {
+      setState(() {
+        _previewWarning = outcome.message;
+        _upsertAssistantMessage(outcome.message, isWarning: true);
+      });
       return;
     }
 
     setState(() {
-      _previewWarning = outcome.message;
-      _upsertAssistantMessage(outcome.message, isWarning: true);
+      _previewWarning = null;
+      _upsertAssistantMessage(
+        _controller.stacJson == null ? 'App updated.' : 'App created.',
+      );
     });
   }
 
@@ -212,14 +141,6 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     }
   }
 
-  bool _looksLikeA2uiPayload(String text) {
-    final lower = text.toLowerCase();
-    return lower.contains('updatecomponents') ||
-        lower.contains('createsurface') ||
-        lower.contains('updatedatamodel') ||
-        lower.contains('```json');
-  }
-
   Future<void> _sendMessage() async {
     final text = _textController.text;
     if (text.trim().isEmpty || _isWaiting) {
@@ -228,38 +149,48 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     _textController.clear();
     setState(() {
       _chatMessages.add(_ChatBubble(text: text, isUser: true));
-      _latestAssistantText = '';
+      _isWaiting = true;
     });
-    await _genUiController.sendMessage(text);
-    _scrollToBottom();
-  }
-
-  Future<void> _stopGeneration() async {
-    await _genUiController.stopGeneration();
-    if (!mounted) {
-      return;
+    try {
+      final outcome = await _controller.sendMessage(text);
+      _handleOutcome(outcome);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = error.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 8)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isWaiting = _controller.isGenerating);
+      }
+      _scrollToBottom();
     }
-    setState(() {
-      _isWaiting = _genUiController.isGenerating;
-    });
   }
 
   Future<void> _retryLastMessage() async {
     if (_isWaiting) {
       return;
     }
-    final lastUser = _chatMessages.lastWhere(
-      (message) => message.isUser,
-      orElse: () => const _ChatBubble(text: '', isUser: true),
-    );
-    if (lastUser.text.trim().isEmpty) {
-      return;
+    setState(() => _isWaiting = true);
+    try {
+      final outcome = await _controller.retryLastMessage();
+      _handleOutcome(outcome);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error'), duration: const Duration(seconds: 8)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isWaiting = _controller.isGenerating);
+      }
+      _scrollToBottom();
     }
-    setState(() {
-      _latestAssistantText = '';
-    });
-    await _genUiController.retryLastMessage();
-    _scrollToBottom();
   }
 
   Future<void> _saveApp() async {
@@ -294,11 +225,11 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     }
 
     try {
-      final snapshot = _genUiController.exportSnapshot();
+      final snapshot = _controller.exportSnapshot();
       final saved = await widget.client.userApp.saveApp(
         id: _appId,
         title: title,
-        surfaceStateJson: jsonEncode(exportSurfaceState(snapshot)),
+        surfaceStateJson: jsonEncode(snapshot.toJson()),
       );
       _appId = saved.id;
       if (!mounted) {
@@ -373,10 +304,10 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
   }
 
   Widget _buildPreviewPane() {
-    final controller = _genUiController.surfaceController;
+    final stacJson = _controller.stacJson;
     return ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      child: _surfaceIds.isEmpty
+      child: stacJson == null
           ? Center(
               key: const ValueKey('preview_empty'),
               child: Column(
@@ -431,34 +362,13 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  for (final surfaceId in _surfaceIds)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Card(
-                        clipBehavior: Clip.antiAlias,
-                        child: ConstrainedBox(
-                          key: ValueKey('preview_surface_$surfaceId'),
-                          constraints: const BoxConstraints(maxHeight: 480),
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: controller == null
-                                ? const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
-                                : Surface(
-                                    surfaceContext: controller.contextFor(
-                                      surfaceId,
-                                    ),
-                                    actionDelegate:
-                                        const LocalStateActionDelegate(),
-                                    defaultBuilder: (context) => const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ),
+                  Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ReactiveStacHost(stacJson: stacJson),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -513,29 +423,9 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
           ),
         ),
         if (_isWaiting)
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                const Expanded(child: LinearProgressIndicator()),
-                if (_latestAssistantText.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      _latestAssistantText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 8),
-                FilledButton.tonal(
-                  key: const ValueKey('stop_generation_button'),
-                  onPressed: _stopGeneration,
-                  child: const Text('Stop'),
-                ),
-              ],
-            ),
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: LinearProgressIndicator(),
           ),
         SafeArea(
           child: Padding(

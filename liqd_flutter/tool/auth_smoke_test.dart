@@ -1,5 +1,4 @@
 import 'package:liqd_client/liqd_client.dart';
-import 'package:liqd_flutter/features/catalog/catalog_manifest_builder.dart';
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart';
 
 class _MemoryStorage implements KeyValueStorage {
@@ -42,21 +41,13 @@ Future<void> main() async {
   final widgets = await client.widgetCatalog.listMyWidgets();
   print('listMyWidgets count: ${widgets.length}');
 
-  final stream = client.genUiStream.chatStream(
-    GenUiChatRequest(
+  final response = await client.stacApp.generateApp(
+    StacGenerateRequest(
       model: 'deepseek/deepseek-v4-flash:free',
-      catalogManifestJson: CatalogManifestBuilder.buildBasicManifest()
-          .toJsonString(),
       messages: [
-        GenUiChatMessage(role: 'user', content: 'Say hi'),
+        StacChatMessage(role: 'user', content: 'Build a calculator'),
       ],
     ),
   );
-  var chunks = 0;
-  await for (final chunk in stream) {
-    print('chunk: ${chunk.length > 40 ? chunk.substring(0, 40) : chunk}');
-    chunks++;
-    if (chunks >= 2) break;
-  }
-  print('chatStream ok, chunks: $chunks');
+  print('generateApp stacJson present: ${response.stacJson != null}');
 }

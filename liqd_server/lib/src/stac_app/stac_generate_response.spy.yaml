@@ -1,0 +1,5 @@
+class: StacGenerateResponse
+fields:
+  stacJson: Map<String, dynamic>?
+  rawResponse: String
+  validationErrors: List<String>?

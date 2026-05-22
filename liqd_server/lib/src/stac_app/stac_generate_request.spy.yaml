@@ -1,0 +1,5 @@
+class: StacGenerateRequest
+fields:
+  model: String?
+  messages: List<StacChatMessage>
+  existingStacJson: String?

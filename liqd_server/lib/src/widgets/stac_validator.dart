@@ -2,7 +2,7 @@ import '../generated/protocol.dart';
 
 /// Validates Stac JSON widget definitions before persistence.
 abstract final class StacValidator {
-  static const _allowedTypes = {
+  static const allowedTypes = {
     'scaffold',
     'appBar',
     'text',
@@ -49,7 +49,7 @@ abstract final class StacValidator {
     final type = stacJson['type'];
     if (type is! String || type.isEmpty) {
       errors.add('"type" must be a non-empty string.');
-    } else if (!_allowedTypes.contains(type)) {
+    } else if (!allowedTypes.contains(type)) {
       errors.add('Unsupported Stac widget type: $type');
     }
 
@@ -73,7 +73,7 @@ abstract final class StacValidator {
 
     final map = node.cast<String, dynamic>();
     final type = map['type'];
-    if (type is String && type.isNotEmpty && !_allowedTypes.contains(type)) {
+    if (type is String && type.isNotEmpty && !allowedTypes.contains(type)) {
       errors.add('Unsupported Stac widget type at $path: $type');
     }
 

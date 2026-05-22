@@ -17,11 +17,13 @@ import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
     as _i4;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _i5;
-import 'package:liqd_client/src/protocol/gen_ui/gen_ui_chat_request.dart'
+import 'package:liqd_client/src/protocol/stac_app/stac_generate_response.dart'
     as _i6;
-import 'package:liqd_client/src/protocol/widgets/user_widget.dart' as _i7;
-import 'package:http/http.dart' as _i8;
-import 'protocol.dart' as _i9;
+import 'package:liqd_client/src/protocol/stac_app/stac_generate_request.dart'
+    as _i7;
+import 'package:liqd_client/src/protocol/widgets/user_widget.dart' as _i8;
+import 'package:http/http.dart' as _i9;
+import 'protocol.dart' as _i10;
 
 /// {@category Endpoint}
 class EndpointUserApp extends _i1.EndpointRef {
@@ -287,34 +289,18 @@ class EndpointJwtRefresh extends _i5.EndpointRefreshJwtTokens {
 }
 
 /// {@category Endpoint}
-class EndpointGenUiStream extends _i1.EndpointRef {
-  EndpointGenUiStream(_i1.EndpointCaller caller) : super(caller);
+class EndpointStacApp extends _i1.EndpointRef {
+  EndpointStacApp(_i1.EndpointCaller caller) : super(caller);
 
   @override
-  String get name => 'genUiStream';
+  String get name => 'stacApp';
 
-  _i2.Stream<String> chatStream(_i6.GenUiChatRequest request) =>
-      caller.callStreamingServerEndpoint<_i2.Stream<String>, String>(
-        'genUiStream',
-        'chatStream',
-        {'request': request},
-        {},
-      );
-
-  _i2.Future<_i7.UserWidget?> generateWidget({
-    required String name,
-    required String description,
-    Map<String, dynamic>? dataSchema,
-    required Map<String, dynamic> stacJson,
-  }) => caller.callServerEndpoint<_i7.UserWidget?>(
-    'genUiStream',
-    'generateWidget',
-    {
-      'name': name,
-      'description': description,
-      'dataSchema': dataSchema,
-      'stacJson': stacJson,
-    },
+  _i2.Future<_i6.StacGenerateResponse> generateApp(
+    _i7.StacGenerateRequest request,
+  ) => caller.callServerEndpoint<_i6.StacGenerateResponse>(
+    'stacApp',
+    'generateApp',
+    {'request': request},
   );
 }
 
@@ -325,19 +311,19 @@ class EndpointWidgetCatalog extends _i1.EndpointRef {
   @override
   String get name => 'widgetCatalog';
 
-  _i2.Future<List<_i7.UserWidget>> listMyWidgets() =>
-      caller.callServerEndpoint<List<_i7.UserWidget>>(
+  _i2.Future<List<_i8.UserWidget>> listMyWidgets() =>
+      caller.callServerEndpoint<List<_i8.UserWidget>>(
         'widgetCatalog',
         'listMyWidgets',
         {},
       );
 
-  _i2.Future<_i7.UserWidget> createWidget({
+  _i2.Future<_i8.UserWidget> createWidget({
     required String name,
     required String description,
     Map<String, dynamic>? dataSchema,
     required Map<String, dynamic> stacJson,
-  }) => caller.callServerEndpoint<_i7.UserWidget>(
+  }) => caller.callServerEndpoint<_i8.UserWidget>(
     'widgetCatalog',
     'createWidget',
     {
@@ -390,10 +376,10 @@ class Client extends _i1.ServerpodClientShared {
     onFailedCall,
     Function(_i1.MethodCallContext)? onSucceededCall,
     bool? disconnectStreamsOnLostInternetConnection,
-    _i8.Client? httpClientOverride,
+    _i9.Client? httpClientOverride,
   }) : super(
          host,
-         _i9.Protocol(),
+         _i10.Protocol(),
          securityContext: securityContext,
          streamingConnectionTimeout: streamingConnectionTimeout,
          connectionTimeout: connectionTimeout,
@@ -406,7 +392,7 @@ class Client extends _i1.ServerpodClientShared {
     userApp = EndpointUserApp(this);
     emailIdp = EndpointEmailIdp(this);
     jwtRefresh = EndpointJwtRefresh(this);
-    genUiStream = EndpointGenUiStream(this);
+    stacApp = EndpointStacApp(this);
     widgetCatalog = EndpointWidgetCatalog(this);
     modules = Modules(this);
   }
@@ -417,7 +403,7 @@ class Client extends _i1.ServerpodClientShared {
 
   late final EndpointJwtRefresh jwtRefresh;
 
-  late final EndpointGenUiStream genUiStream;
+  late final EndpointStacApp stacApp;
 
   late final EndpointWidgetCatalog widgetCatalog;
 
@@ -428,7 +414,7 @@ class Client extends _i1.ServerpodClientShared {
     'userApp': userApp,
     'emailIdp': emailIdp,
     'jwtRefresh': jwtRefresh,
-    'genUiStream': genUiStream,
+    'stacApp': stacApp,
     'widgetCatalog': widgetCatalog,
   };
 

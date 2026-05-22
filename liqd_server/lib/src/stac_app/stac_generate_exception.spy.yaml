@@ -1,0 +1,3 @@
+exception: StacGenerateException
+fields:
+  message: String
