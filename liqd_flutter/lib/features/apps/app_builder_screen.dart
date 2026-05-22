@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:liqd_client/liqd_client.dart';
@@ -5,6 +7,7 @@ import 'package:serverpod_client/serverpod_client.dart';
 import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 
 import '../chat/gen_ui_controller.dart';
+import '../chat/local_calculator_action_delegate.dart';
 import '../catalog/stac_template_merger.dart';
 
 class AppBuilderScreen extends StatefulWidget {
@@ -246,19 +249,31 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
       return;
     }
 
-    final snapshot = _genUiController.exportSnapshot();
-    final saved = await widget.client.userApp.saveApp(
-      id: _appId,
-      title: title,
-      surfaceState: exportSurfaceState(snapshot),
-    );
-    _appId = saved.id;
-    if (!mounted) {
-      return;
+    try {
+      final snapshot = _genUiController.exportSnapshot();
+      final saved = await widget.client.userApp.saveApp(
+        id: _appId,
+        title: title,
+        surfaceStateJson: jsonEncode(exportSurfaceState(snapshot)),
+      );
+      _appId = saved.id;
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('App saved')),
+      );
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not save app: $error'),
+          duration: const Duration(seconds: 8),
+        ),
+      );
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('App saved')),
-    );
   }
 
   void _scrollToBottom() {
@@ -365,6 +380,10 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                                     surfaceContext: controller.contextFor(
                                       surfaceId,
                                     ),
+                                    actionDelegate:
+                                        LocalCalculatorActionDelegate(
+                                          controller: controller,
+                                        ),
                                     defaultBuilder: (context) => const Center(
                                       child: CircularProgressIndicator(),
                                     ),

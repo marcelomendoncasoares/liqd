@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
@@ -27,10 +29,15 @@ class UserAppEndpoint extends Endpoint {
     Session session, {
     int? id,
     required String title,
-    required Map<String, dynamic> surfaceState,
+    required String surfaceStateJson,
   }) async {
     final authUserId = _requireAuthUserId(session);
     final now = DateTime.now().toUtc();
+    final decoded = jsonDecode(surfaceStateJson);
+    if (decoded is! Map<String, dynamic>) {
+      throw ArgumentError('surfaceStateJson must decode to a JSON object.');
+    }
+    final surfaceState = decoded;
 
     if (id != null) {
       final existing = await UserApp.db.findById(session, id);

@@ -47,14 +47,14 @@ class EndpointUserApp extends _i1.EndpointRef {
   _i2.Future<_i3.UserApp> saveApp({
     int? id,
     required String title,
-    required Map<String, dynamic> surfaceState,
+    required String surfaceStateJson,
   }) => caller.callServerEndpoint<_i3.UserApp>(
     'userApp',
     'saveApp',
     {
       'id': id,
       'title': title,
-      'surfaceState': surfaceState,
+      'surfaceStateJson': surfaceStateJson,
     },
   );
 

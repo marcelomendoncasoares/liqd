@@ -104,9 +104,9 @@ class Endpoints extends _i1.EndpointDispatch {
               type: _i1.getType<String>(),
               nullable: false,
             ),
-            'surfaceState': _i1.ParameterDescription(
-              name: 'surfaceState',
-              type: _i1.getType<Map<String, dynamic>>(),
+            'surfaceStateJson': _i1.ParameterDescription(
+              name: 'surfaceStateJson',
+              type: _i1.getType<String>(),
               nullable: false,
             ),
           },
@@ -118,7 +118,7 @@ class Endpoints extends _i1.EndpointDispatch {
                 session,
                 id: params['id'],
                 title: params['title'],
-                surfaceState: params['surfaceState'],
+                surfaceStateJson: params['surfaceStateJson'],
               ),
         ),
         'deleteApp': _i1.MethodConnector(

@@ -251,7 +251,7 @@ class _UserAppEndpoint {
     _i1.TestSessionBuilder sessionBuilder, {
     int? id,
     required String title,
-    required Map<String, dynamic> surfaceState,
+    required String surfaceStateJson,
   }) async {
     return _i1.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
@@ -267,7 +267,7 @@ class _UserAppEndpoint {
           parameters: _i1.testObjectToJson({
             'id': id,
             'title': title,
-            'surfaceState': surfaceState,
+            'surfaceStateJson': surfaceStateJson,
           }),
           serializationManager: _serializationManager,
         );
