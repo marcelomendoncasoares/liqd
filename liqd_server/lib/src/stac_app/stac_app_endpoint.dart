@@ -6,7 +6,6 @@ import '../ai/open_router_config.dart';
 import '../widgets/stac_validator.dart';
 import 'package:serverpod/serverpod.dart';
 
-import 'stac_dev_mock.dart';
 import 'stac_extractor.dart';
 import 'stac_prompt.dart';
 
@@ -23,19 +22,11 @@ class StacAppEndpoint extends Endpoint {
   ) async {
     try {
       return await _generateAppImpl(session, request);
+    } on StacGenerateException {
+      rethrow;
     } catch (error, stackTrace) {
-      if (session.serverpod.runMode == ServerpodRunMode.development) {
-        session.log(
-          'generateApp failed ($error); returning dev calculator mock.',
-          level: LogLevel.warning,
-        );
-        session.log('$stackTrace', level: LogLevel.debug);
-        return _devMockResponse();
-      }
-      if (error is StacGenerateException) {
-        rethrow;
-      }
       session.log('generateApp failed: $error', level: LogLevel.error);
+      session.log('$stackTrace', level: LogLevel.debug);
       throw StacGenerateException(message: 'Stac generation failed: $error');
     }
   }
@@ -51,13 +42,6 @@ class StacAppEndpoint extends Endpoint {
 
     final apiKey = OpenRouterConfig.resolveApiKey(session);
     if (apiKey == null) {
-      if (session.serverpod.runMode == ServerpodRunMode.development) {
-        session.log(
-          'OpenRouter API key missing; returning dev calculator mock.',
-          level: LogLevel.warning,
-        );
-        return _devMockResponse();
-      }
       session.log(OpenRouterConfig.missingKeyMessage(), level: LogLevel.error);
       throw StacGenerateException(
         message: OpenRouterConfig.missingKeyMessage(),
@@ -146,13 +130,6 @@ class StacAppEndpoint extends Endpoint {
         validationErrors: const ['Generation failed after retries.'],
       );
     } on OpenRouterException catch (error) {
-      if (session.serverpod.runMode == ServerpodRunMode.development) {
-        session.log(
-          'OpenRouter failed (${error.statusCode}); returning dev calculator mock.',
-          level: LogLevel.warning,
-        );
-        return _devMockResponse();
-      }
       session.log('OpenRouter error: $error', level: LogLevel.error);
       throw StacGenerateException(
         message:
@@ -162,13 +139,6 @@ class StacAppEndpoint extends Endpoint {
     } finally {
       client.close();
     }
-  }
-
-  StacGenerateResponse _devMockResponse() {
-    return StacGenerateResponse(
-      stacJson: StacDevMock.calculator(),
-      rawResponse: 'Development mock calculator.',
-    );
   }
 
   Future<void> _processNewWidgetBlocks(
