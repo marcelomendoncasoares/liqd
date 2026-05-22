@@ -5,13 +5,15 @@ import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 import 'package:stac/stac.dart';
 
 import 'features/catalog/liqd_stac_setup.dart';
+import 'dev_auth_storage.dart';
 import 'features/apps/apps_list_screen.dart';
 import 'features/apps/settings_screen.dart';
 import 'screens/sign_in_screen.dart';
 
 late final Client client;
 
-void main() async {
+/// Shared bootstrap for [main] and [driver_main].
+Future<void> setupLiqd({bool useDevAuthStorage = false}) async {
   WidgetsFlutterBinding.ensureInitialized();
   await Stac.initialize();
   LiqdStacSetup.register();
@@ -20,10 +22,15 @@ void main() async {
 
   client = Client(serverUrl)
     ..connectivityMonitor = FlutterConnectivityMonitor()
-    ..authSessionManager = FlutterAuthSessionManager();
+    ..authSessionManager = FlutterAuthSessionManager(
+      storage: useDevAuthStorage ? DevAuthStorage.create() : null,
+    );
 
-  client.auth.initialize();
+  await client.auth.initialize();
+}
 
+void main() async {
+  await setupLiqd();
   runApp(const LiqdApp());
 }
 
