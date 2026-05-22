@@ -62,6 +62,18 @@ class GenUiStreamEndpoint extends Endpoint {
       throw GenUiStreamException(message: OpenRouterConfig.missingKeyMessage());
     }
 
+    // UI error feedback loops back from the client; don't burn OpenRouter quota.
+    if (_isClientErrorFeedback(request)) {
+      session.log(
+        'Skipping OpenRouter for client error feedback message.',
+        level: LogLevel.info,
+      );
+      if (session.serverpod.runMode == ServerpodRunMode.development) {
+        yield* _streamDevMock();
+      }
+      return;
+    }
+
     final model = request.model ?? defaultModel;
     final buffer = StringBuffer();
     final normalizer = A2uiStreamNormalizer();
@@ -213,5 +225,25 @@ class GenUiStreamEndpoint extends Endpoint {
       return value;
     }
     return '${value.substring(0, maxLength)}...';
+  }
+
+  bool _isClientErrorFeedback(GenUiChatRequest request) {
+    if (request.messages.isEmpty) {
+      return false;
+    }
+    final last = request.messages.last;
+    if (last.role != 'user') {
+      return false;
+    }
+    final content = last.content.trim();
+    if (!content.startsWith('{')) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(content) as Map<String, dynamic>;
+      return decoded.containsKey('error');
+    } on FormatException {
+      return false;
+    }
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liqd_client/liqd_client.dart';
+import 'package:serverpod_client/serverpod_client.dart';
+import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 
 import '../../config/model_preferences.dart';
 import '../catalog/catalog_browser_screen.dart';
@@ -44,6 +46,8 @@ class _AppsListScreenState extends State<AppsListScreen> {
         _apps = apps;
         _loading = false;
       });
+    } on ServerpodClientUnauthorized {
+      await widget.client.auth.signOutDevice();
     } on Object catch (error) {
       if (!mounted) {
         return;

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:liqd_client/liqd_client.dart';
+import 'package:serverpod_client/serverpod_client.dart';
+import 'package:serverpod_auth_idp_flutter/serverpod_auth_idp_flutter.dart';
 
 import '../chat/gen_ui_controller.dart';
-import '../chat/serverpod_transport.dart';
 import '../catalog/stac_template_merger.dart';
 
 class AppBuilderScreen extends StatefulWidget {
@@ -40,17 +41,30 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     _appId = widget.existingApp?.id;
     _genUiController = GenUiController(
       client: widget.client,
+      model: widget.model,
       savedSurfaceState: widget.existingApp?.surfaceState,
-      onSendToServer: (message, transport, history) {
-        return streamGenUiFromServer(
-          client: widget.client,
-          transport: transport,
-          history: history,
-          message: message,
-          model: widget.model,
-        );
-      },
     );
+    widget.client.auth.authInfoListenable.addListener(_onAuthChanged);
+    _initialize();
+  }
+
+  @override
+  void dispose() {
+    widget.client.auth.authInfoListenable.removeListener(_onAuthChanged);
+    _genUiController.dispose();
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (!widget.client.auth.isAuthenticated || _initError == null) {
+      return;
+    }
+    setState(() {
+      _initError = null;
+      _initializing = true;
+    });
     _initialize();
   }
 
@@ -81,6 +95,8 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
         );
         _initializing = false;
       });
+    } on ServerpodClientUnauthorized {
+      await widget.client.auth.signOutDevice();
     } on Object catch (error) {
       if (!mounted) {
         return;
@@ -177,6 +193,10 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
     _scrollToBottom();
   }
 
+  Future<void> _stopGeneration() async {
+    await _genUiController.stopGeneration();
+  }
+
   Future<void> _retryLastMessage() async {
     if (_isWaiting) {
       return;
@@ -251,14 +271,6 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
         );
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _genUiController.dispose();
-    _textController.dispose();
-    _scrollController.dispose();
-    super.dispose();
   }
 
   @override
@@ -415,6 +427,12 @@ class _AppBuilderScreenState extends State<AppBuilderScreen> {
                     ),
                   ),
                 ],
+                const SizedBox(width: 8),
+                FilledButton.tonal(
+                  key: const ValueKey('stop_generation_button'),
+                  onPressed: _stopGeneration,
+                  child: const Text('Stop'),
+                ),
               ],
             ),
           ),

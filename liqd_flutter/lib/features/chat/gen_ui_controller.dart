@@ -1,27 +1,26 @@
+import 'dart:async';
+
 import 'package:genui/genui.dart';
 import 'package:liqd_client/liqd_client.dart';
 
 import '../catalog/catalog_builder.dart';
 import '../catalog/stac_template_merger.dart';
+import 'generation_cancel_token.dart';
 import 'local_action_handler.dart';
+import 'serverpod_transport.dart';
 
 /// Orchestrates GenUI conversation lifecycle with a dynamic user catalog.
 class GenUiController {
   GenUiController({
     required this.client,
-    required this.onSendToServer,
+    required this.model,
     Map<String, dynamic>? savedSurfaceState,
   }) {
     _savedSurfaceState = savedSurfaceState;
   }
 
   final Client client;
-  final Future<void> Function(
-    ChatMessage message,
-    A2uiTransportAdapter transport,
-    List<GenUiChatMessage> history,
-  )
-  onSendToServer;
+  final String model;
 
   final List<GenUiChatMessage> _messageHistory = [];
   Map<String, dynamic>? _savedSurfaceState;
@@ -31,9 +30,13 @@ class GenUiController {
   SurfaceController? _surfaceController;
   A2uiTransportAdapter? _transport;
   Conversation? _conversation;
+  bool _streamInFlight = false;
+  GenerationCancelToken? _cancelToken;
+  StreamSubscription<String>? _streamSubscription;
 
-  Catalog? get catalog =>
-      _catalogs.isNotEmpty ? _catalogs.last : null;
+  bool get isGenerating => _streamInFlight;
+
+  Catalog? get catalog => _catalogs.isNotEmpty ? _catalogs.last : null;
   SurfaceController? get surfaceController => _surfaceController;
   Conversation? get conversation => _conversation;
   List<GenUiChatMessage> get messageHistory =>
@@ -60,6 +63,14 @@ class GenUiController {
     _messageHistory.add(GenUiChatMessage(role: 'user', content: trimmed));
     await _conversation!.sendRequest(ChatMessage.user(trimmed));
     await _reloadCatalogIfNewWidgets();
+  }
+
+  /// Cancels the active server generation stream, if any.
+  Future<void> stopGeneration() async {
+    _cancelToken?.cancel();
+    await _streamSubscription?.cancel();
+    _streamSubscription = null;
+    _streamInFlight = false;
   }
 
   /// Re-sends the last user message without duplicating history.
@@ -142,6 +153,12 @@ class GenUiController {
       return;
     }
 
+    // GenUI forwards validation/runtime errors to onSubmit, which would
+    // otherwise trigger a new OpenRouter call per error (rate-limit storm).
+    if (LocalActionHandler.isErrorFeedback(message)) {
+      return;
+    }
+
     if (LocalActionHandler.tryHandle(
       controller: controller,
       message: message,
@@ -149,7 +166,29 @@ class GenUiController {
       return;
     }
 
-    await onSendToServer(message, transport, List.from(_messageHistory));
+    if (_streamInFlight) {
+      return;
+    }
+
+    _cancelToken = GenerationCancelToken();
+    _streamInFlight = true;
+    try {
+      await streamGenUiFromServer(
+        client: client,
+        transport: transport,
+        history: List.from(_messageHistory),
+        message: message,
+        model: model,
+        cancelToken: _cancelToken!,
+        onSubscription: (subscription) {
+          _streamSubscription = subscription;
+        },
+      );
+    } finally {
+      _cancelToken = null;
+      _streamSubscription = null;
+      _streamInFlight = false;
+    }
   }
 
   void _restoreSurfaces(Map<String, dynamic> state) {
@@ -207,6 +246,8 @@ class GenUiController {
   }
 
   void dispose() {
+    _cancelToken?.cancel();
+    _streamSubscription?.cancel();
     _conversation?.dispose();
     _transport?.dispose();
     _surfaceController?.dispose();

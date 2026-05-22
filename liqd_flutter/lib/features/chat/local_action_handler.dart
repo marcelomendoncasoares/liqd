@@ -4,17 +4,22 @@ import 'package:genui/genui.dart';
 
 /// Handles simple UI actions locally without a server round-trip.
 abstract final class LocalActionHandler {
+  /// Whether [message] is a GenUI client-side error report (not a user prompt).
+  static bool isErrorFeedback(ChatMessage message) {
+    final envelope = _decodeInteractionEnvelope(message);
+    return envelope != null && envelope.containsKey('error');
+  }
+
   static bool tryHandle({
     required SurfaceController controller,
     required ChatMessage message,
   }) {
-    final interactionJson = _extractInteractionJson(message);
-    if (interactionJson == null) {
+    final envelope = _decodeInteractionEnvelope(message);
+    if (envelope == null) {
       return false;
     }
 
     try {
-      final envelope = jsonDecode(interactionJson) as Map<String, dynamic>;
       final action = envelope['action'];
       if (action is! Map<String, dynamic>) {
         return false;
@@ -64,6 +69,22 @@ abstract final class LocalActionHandler {
       if (interaction != null) {
         return interaction.interaction;
       }
+    }
+    return null;
+  }
+
+  static Map<String, dynamic>? _decodeInteractionEnvelope(ChatMessage message) {
+    final interactionJson = _extractInteractionJson(message);
+    if (interactionJson == null) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(interactionJson);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } on Object {
+      // Ignore malformed interaction payloads.
     }
     return null;
   }

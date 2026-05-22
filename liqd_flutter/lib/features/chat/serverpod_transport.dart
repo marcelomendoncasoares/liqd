@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:genui/genui.dart';
 import 'package:liqd_client/liqd_client.dart';
 
 import '../../config/app_config.dart';
+import 'generation_cancel_token.dart';
 
 String _formatStreamError(Object error) {
   if (error is GenUiStreamException) {
@@ -64,6 +67,9 @@ Future<void> streamGenUiFromServer({
   required A2uiTransportAdapter transport,
   required List<GenUiChatMessage> history,
   required ChatMessage message,
+  required GenerationCancelToken cancelToken,
+  required void Function(StreamSubscription<String> subscription)
+  onSubscription,
   String? model,
 }) async {
   final messages = [
@@ -77,13 +83,54 @@ Future<void> streamGenUiFromServer({
 
   try {
     final stream = client.genUiStream.chatStream(request);
-    await for (final chunk in stream) {
-      transport.addChunk(chunk);
+    final completer = Completer<void>();
+
+    late StreamSubscription<String> subscription;
+    subscription = stream.listen(
+      (chunk) {
+        if (cancelToken.isCancelled) {
+          subscription.cancel();
+          return;
+        }
+        transport.addChunk(chunk);
+      },
+      onDone: () async {
+        if (!cancelToken.isCancelled) {
+          await transport.flush();
+        }
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (cancelToken.isCancelled) {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+          return;
+        }
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+      cancelOnError: true,
+    );
+    onSubscription(subscription);
+
+    if (cancelToken.isCancelled) {
+      await subscription.cancel();
     }
-    await transport.flush();
+
+    await completer.future;
   } on GenUiStreamException catch (error) {
+    if (cancelToken.isCancelled) {
+      return;
+    }
     throw Exception(error.message);
   } catch (error) {
+    if (cancelToken.isCancelled) {
+      return;
+    }
     throw Exception(_formatStreamError(error));
   }
 }
