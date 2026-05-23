@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:stac/stac.dart';
 
+import 'stac_preview_normalizer.dart';
+
 /// Rebuilds Stac JSON when [StacRegistry] values change (via setValue actions).
 class ReactiveStacHost extends StatefulWidget {
   const ReactiveStacHost({
@@ -24,13 +26,17 @@ class ReactiveStacHost extends StatefulWidget {
 class _ReactiveStacHostState extends State<ReactiveStacHost> {
   void markRegistryChanged() {
     if (mounted) {
-      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stac.fromJson(widget.stacJson, context) ??
-        const SizedBox.shrink();
+    final normalized = normalizeStacForPreview(widget.stacJson);
+    return Stac.fromJson(normalized, context) ?? const SizedBox.shrink();
   }
 }

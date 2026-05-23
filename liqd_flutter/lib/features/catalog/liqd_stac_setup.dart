@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:stac/stac.dart';
 
 import 'reactive_stac_host.dart';
+import 'stac_preview_normalizer.dart';
 
 /// Registers Liqd-specific Stac extensions (reactive setValue actions/widgets).
 abstract final class LiqdStacSetup {
@@ -56,6 +57,16 @@ class _LiqdReactiveSetValueWidgetState
     }
   }
 
+  void markRegistryChanged() {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final child = widget.model.child;
@@ -64,7 +75,8 @@ class _LiqdReactiveSetValueWidgetState
     }
 
     final resolvedJson = _resolveChildJson(child.toJson());
-    return Stac.fromJson(resolvedJson, context) ?? const SizedBox.shrink();
+    final normalized = normalizeStacForPreview(resolvedJson);
+    return Stac.fromJson(normalized, context) ?? const SizedBox.shrink();
   }
 
   Map<String, dynamic> _resolveChildJson(Map<String, dynamic> childJson) {
@@ -94,7 +106,13 @@ class LiqdNotifySetValueActionParser
       final key = value['key'] as String;
       registry.setValue(key, _resolveSetValue(value['value'], registry));
     }
-    ReactiveStacHost.notifyRegistryChanged(context);
+    final setValueState = context
+        .findAncestorStateOfType<_LiqdReactiveSetValueWidgetState>();
+    if (setValueState != null) {
+      setValueState.markRegistryChanged();
+    } else {
+      ReactiveStacHost.notifyRegistryChanged(context);
+    }
     return model.action?.parse(context);
   }
 }

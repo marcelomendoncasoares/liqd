@@ -69,6 +69,9 @@ Do not explain changes — only the fenced JSON block.
       buffer.writeln('''
 For new apps, wrap the UI in a root setValue widget that initializes all state keys.
 The tree must include a "type" field at the root.
+
+NEVER use "scaffold" or "appBar". The preview pane already provides screen chrome.
+Use "column", "row", "card", and "padding" for layout instead.
 ''');
     }
 
