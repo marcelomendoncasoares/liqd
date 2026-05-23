@@ -34,6 +34,9 @@ class OpenRouterClient {
         'temperature': ?temperature,
         'max_tokens': ?maxTokens,
         'service_tier': 'flex',
+        'provider': {
+          'order': ['wandb/fp4'],
+        },
       }),
     );
 

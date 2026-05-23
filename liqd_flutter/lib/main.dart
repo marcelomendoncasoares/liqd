@@ -20,11 +20,16 @@ Future<void> setupLiqd({bool useDevAuthStorage = false}) async {
 
   final serverUrl = await getServerUrl();
 
-  client = Client(serverUrl)
-    ..connectivityMonitor = FlutterConnectivityMonitor()
-    ..authSessionManager = FlutterAuthSessionManager(
-      storage: useDevAuthStorage ? DevAuthStorage.create() : null,
-    );
+  client =
+      Client(
+          serverUrl,
+          connectionTimeout: const Duration(seconds: 60),
+          streamingConnectionTimeout: const Duration(seconds: 60),
+        )
+        ..connectivityMonitor = FlutterConnectivityMonitor()
+        ..authSessionManager = FlutterAuthSessionManager(
+          storage: useDevAuthStorage ? DevAuthStorage.create() : null,
+        );
 
   await client.auth.initialize();
 }
